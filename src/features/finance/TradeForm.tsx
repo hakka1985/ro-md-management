@@ -1,5 +1,10 @@
 import { useState, type FormEvent } from "react";
-import { useItemPrices, useInventory, useTransactions } from "./useFinance";
+import {
+  useItemPrices,
+  useInventory,
+  useTransactions,
+  useDebts,
+} from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
 import { partyShare } from "../../lib/party";
 import { UnregisteredItemPrompt } from "./UnregisteredItemPrompt";
@@ -11,12 +16,14 @@ export function TradeForm() {
   const { itemPrices, upsertItemPrice } = useItemPrices();
   const { inventory, addStock, removeStock } = useInventory();
   const { addTransaction } = useTransactions();
+  const { addDebt } = useDebts();
 
   const [kind, setKind] = useState<TradeKind>("sell");
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitPriceInput, setUnitPriceInput] = useState("");
   const [partySize, setPartySize] = useState("1");
+  const [partyMembersInput, setPartyMembersInput] = useState("");
   const [isEventIncome, setIsEventIncome] = useState(false);
   const [tagsInput, setTagsInput] = useState("");
   const [error, setError] = useState("");
@@ -57,21 +64,39 @@ export function TradeForm() {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
         setUnregisteredNames((prev) => [...prev, name]);
       }
+      const saleDate = Date.now();
       await addTransaction({
         type: "income" as FinanceType,
         itemName: name,
         quantity: qty,
         unitPrice: recordedUnitPrice,
         amount,
-        date: Date.now(),
+        date: saleDate,
         source: "market",
         partySize: party,
         isEventIncome,
         tags,
       });
+      // The seller (this account) holds the full sale amount at first, so
+      // each named member's share is money owed *to* them, not yet handed
+      // over — "borrowed" (負債) so it reduces total assets until repaid,
+      // mirroring "this cash isn't fully mine yet."
+      const partyMembers = partyMembersInput
+        .split(/[,、\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      for (const member of partyMembers) {
+        await addDebt({
+          direction: "borrowed",
+          counterparty: member,
+          amount,
+          date: saleDate,
+          memo: `PT分配（${name} 売却分）`,
+        });
+      }
       setMessage(
         party > 1
-          ? `売却を記録しました（PT${party}人で分配、記録額 ${formatZ(amount)}）。`
+          ? `売却を記録しました（PT${party}人で分配、記録額 ${formatZ(amount)}）。${partyMembers.length > 0 ? `${partyMembers.join("・")}への分配分（各${formatZ(amount)}）を「貸し借り」に記録しました。` : ""}`
           : `売却を記録しました（${formatZ(amount)}）。`,
       );
     } else if (kind === "buy") {
@@ -122,6 +147,7 @@ export function TradeForm() {
     setQuantity("1");
     setUnitPriceInput("");
     setPartySize("1");
+    setPartyMembersInput("");
     setIsEventIncome(false);
     setTagsInput("");
   }
@@ -227,6 +253,23 @@ export function TradeForm() {
               value={partySize}
               onChange={(e) => setPartySize(e.target.value)}
             />
+          </label>
+        )}
+
+        {kind === "sell" && Number(partySize) > 1 && (
+          <label>
+            PTメンバー（分配相手、任意、スペース・カンマ区切りで複数可）
+            <input
+              placeholder="例: 相方A 相方B"
+              value={partyMembersInput}
+              onChange={(e) => setPartyMembersInput(e.target.value)}
+            />
+            <span className="hint">
+              名前を入力すると、それぞれに分配額（
+              {formatZ(Math.floor(parseZeny(unitPriceInput) / Math.max(1, Number(partySize) || 1)) * Number(quantity || "0"))}
+              ）分の「貸し借り」（負債）が自動で記録されます。「貸し借り」タブで
+              支払い済みを記録できます。
+            </span>
           </label>
         )}
 
