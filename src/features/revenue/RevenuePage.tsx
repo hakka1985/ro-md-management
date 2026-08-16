@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { useTransactions } from "../finance/useFinance";
+import { useTransactions, useInventory, useItemPrices } from "../finance/useFinance";
 import { useCharacters } from "../characters/useCharacters";
 import {
   groupTransactionsByPeriod,
   getRealizedProfit,
+  getInventoryValue,
   getItemRevenueBreakdown,
   getCharacterFinanceBreakdown,
   getSourceFinanceBreakdown,
@@ -130,6 +131,8 @@ function characterSortValue(
 
 export function RevenuePage() {
   const { transactions } = useTransactions();
+  const { inventory } = useInventory();
+  const { itemPrices } = useItemPrices();
   const { characters } = useCharacters();
   const [granularity, setGranularity] = useState<PeriodGranularity>("month");
   const [periodDateFrom, setPeriodDateFrom] = useState("");
@@ -161,6 +164,13 @@ export function RevenuePage() {
     .filter((t) => t.type === "expense")
     .reduce((sum, t) => sum + t.amount, 0);
   const totalNet = getRealizedProfit(transactions);
+  const inventoryValue = getInventoryValue(inventory, itemPrices);
+  const inventoryQtyByName = new Map(
+    inventory.map((i) => [i.itemName, i.quantity]),
+  );
+  const priceByName = new Map(
+    itemPrices.map((p) => [p.itemName, p.expectedPrice]),
+  );
   const itemBreakdownAll = getItemRevenueBreakdown(transactions);
   const itemBreakdownFiltered = itemBreakdownAll.filter((i) =>
     i.itemName.toLowerCase().includes(itemSearch.trim().toLowerCase()),
@@ -211,6 +221,11 @@ export function RevenuePage() {
           <p className="empty">
             取引記録タブで売却・購入を記録すると、ここに詳細な統計・分析結果が表示されます。サマリーはダッシュボードで確認できます。
           </p>
+          {inventoryValue > 0 && (
+            <p title={`${inventoryValue.toLocaleString()} z`}>
+              予想利益（現在の在庫評価額）: <strong>{formatZ(inventoryValue)}</strong>
+            </p>
+          )}
         </section>
       </div>
     );
@@ -229,11 +244,16 @@ export function RevenuePage() {
             総支出: {formatZ(totalExpense)}
           </li>
           <li title={`${totalNet.toLocaleString()} z`}>
-            <strong>純利益: {formatZ(totalNet)}</strong>
+            <strong>純利益（実現済み）: {formatZ(totalNet)}</strong>
+          </li>
+          <li title={`${inventoryValue.toLocaleString()} z`}>
+            予想利益（現在の在庫評価額）: {formatZ(inventoryValue)}
           </li>
         </ul>
         <p className="hint">
           収益タブは基準値に関わらず常に全期間の取引記録を対象にします（ダッシュボードは基準値設定時、基準日以降のみ対象）。
+          「純利益」は実際に売却済みの実績、「予想利益」はまだ売っていない在庫を想定単価で
+          評価した金額です（実際にその値段で売れるとは限りません）。
         </p>
         {(itemConcentration || sourceConcentration) && (
           <ul className="stat-list">
@@ -397,25 +417,33 @@ export function RevenuePage() {
                   dir={itemSort.sortDir}
                   onSort={itemSort.toggleSort}
                 />
+                <th title="現在の在庫評価額（未実現の予想利益）">現在庫の評価額</th>
               </tr>
             </thead>
             <tbody>
-              {itemSort.sorted.map((i) => (
-                <tr key={i.itemName}>
-                  <td>{i.itemName}</td>
-                  <td>{i.sellCount}回</td>
-                  <td>{i.sellQuantity}</td>
-                  <td title={`${i.totalRevenue.toLocaleString()} z`}>
-                    {formatZ(i.totalRevenue)}
-                  </td>
-                  <td title={`${Math.round(i.avgUnitPrice).toLocaleString()} z`}>
-                    {formatZ(Math.round(i.avgUnitPrice))}
-                  </td>
-                </tr>
-              ))}
+              {itemSort.sorted.map((i) => {
+                const stockQty = inventoryQtyByName.get(i.itemName) ?? 0;
+                const stockValue = stockQty * (priceByName.get(i.itemName) ?? 0);
+                return (
+                  <tr key={i.itemName}>
+                    <td>{i.itemName}</td>
+                    <td>{i.sellCount}回</td>
+                    <td>{i.sellQuantity}</td>
+                    <td title={`${i.totalRevenue.toLocaleString()} z`}>
+                      {formatZ(i.totalRevenue)}
+                    </td>
+                    <td title={`${Math.round(i.avgUnitPrice).toLocaleString()} z`}>
+                      {formatZ(Math.round(i.avgUnitPrice))}
+                    </td>
+                    <td title={`${stockValue.toLocaleString()} z（在庫${stockQty}個）`}>
+                      {stockQty > 0 ? formatZ(stockValue) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
               {itemSort.sorted.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="empty">
+                  <td colSpan={6} className="empty">
                     {itemSearch
                       ? "一致するアイテムがありません"
                       : "まだ売却記録がありません"}
