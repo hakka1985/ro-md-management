@@ -3,14 +3,17 @@ import { useInventory, useItemPrices, useTransactions } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
 import { useTableSort } from "../../lib/useTableSort";
 import { SortableHeader } from "../../components/SortableHeader";
+import { useToast } from "../../components/toastContext";
 import type { InventoryItem } from "../../db/types";
 
 const STALE_DAYS = 14;
 
 export function InventoryList() {
-  const { inventory, setStock } = useInventory();
+  const { inventory, setStock, deleteInventoryItem, restoreInventoryItem } =
+    useInventory();
   const { itemPrices, upsertItemPrice } = useItemPrices();
   const { transactions } = useTransactions();
+  const { showUndo } = useToast();
   const [search, setSearch] = useState("");
 
   const priceByName = new Map(
@@ -84,6 +87,7 @@ export function InventoryList() {
       <p className="hint">
         数量・想定単価欄を直接書き換えると、取引履歴を増やさずに更新できます。
         🔥は評価額が高いのに{STALE_DAYS}日以上売れていない（または一度も売っていない）在庫です。売り時かもしれません。
+        間違って登録した行は「削除」で取り消せます（取引履歴・アイテムマスタには影響しません）。
       </p>
       <input
         placeholder="アイテム名で検索"
@@ -123,6 +127,7 @@ export function InventoryList() {
                 dir={sortDir}
                 onSort={toggleSort}
               />
+              <th>操作</th>
             </tr>
           </thead>
           <tbody>
@@ -175,12 +180,32 @@ export function InventoryList() {
                   <td title={`${(i.quantity * price).toLocaleString()} z`}>
                     {formatZ(i.quantity * price)}
                   </td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `「${i.itemName}」を在庫一覧から削除しますか？（取引履歴・アイテムマスタからは削除されません）`,
+                          )
+                        ) {
+                          const record = i;
+                          deleteInventoryItem(i.id);
+                          showUndo(`「${i.itemName}」を削除しました`, () =>
+                            restoreInventoryItem(record),
+                          );
+                        }
+                      }}
+                    >
+                      削除
+                    </button>
+                  </td>
                 </tr>
               );
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={4} className="empty">
+                <td colSpan={5} className="empty">
                   {search ? "一致するアイテムがありません" : "在庫はありません"}
                 </td>
               </tr>

@@ -3,6 +3,7 @@ import { useItemPrices } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
 import { Modal } from "../../components/Modal";
 import { MasterExportImportPanel } from "../../components/MasterExportImportPanel";
+import { useToast } from "../../components/toastContext";
 import type { ItemPrice } from "../../db/types";
 
 const STALE_PRICE_DAYS = 30;
@@ -19,8 +20,11 @@ export function ItemMasterTable() {
     upsertItemPrice,
     updateItemPrice,
     archiveItemPrice,
+    deleteItemPrice,
+    restoreItemPrice,
     importItemPrices,
   } = useItemPrices();
+  const { showUndo } = useToast();
   const [search, setSearch] = useState("");
   const [newName, setNewName] = useState("");
   const [newPrice, setNewPrice] = useState("");
@@ -150,6 +154,24 @@ export function ItemMasterTable() {
                       onClick={() => archiveItemPrice(p.id, !p.archived)}
                     >
                       {p.archived ? "復元" : "除外"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `「${p.itemName}」をアイテムマスタから削除しますか？（在庫・取引履歴からは削除されません。それらは想定単価0の未登録アイテム扱いになります）`,
+                          )
+                        ) {
+                          const record = p;
+                          deleteItemPrice(p.id);
+                          showUndo(`「${p.itemName}」を削除しました`, () =>
+                            restoreItemPrice(record),
+                          );
+                        }
+                      }}
+                    >
+                      削除
                     </button>
                   </td>
                 </tr>

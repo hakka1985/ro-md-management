@@ -21,6 +21,7 @@ interface RunRow {
   dungeonName: string;
   characterName: string;
   defeatedText: string;
+  itemsText: string;
 }
 
 function sortValue(row: RunRow, key: string): string | number {
@@ -63,11 +64,16 @@ export function MdRunList({ onEdit }: Props) {
         : defeated.length > 0
           ? defeated.join("、")
           : "討伐なし";
+    const itemsText = Object.entries(run.items ?? {})
+      .filter(([, qty]) => qty > 0)
+      .map(([name, qty]) => `${name}×${qty}`)
+      .join("、");
     return {
       run,
       dungeonName: dungeonNameById.get(run.dungeonId) ?? "（不明なMD）",
       characterName: characterNameById.get(run.characterId) ?? "",
       defeatedText,
+      itemsText,
     };
   });
 
@@ -79,7 +85,8 @@ export function MdRunList({ onEdit }: Props) {
         r.dungeonName.toLowerCase().includes(q) ||
         r.characterName.toLowerCase().includes(q) ||
         (r.run.modeName ?? "").toLowerCase().includes(q) ||
-        (r.run.memo ?? "").toLowerCase().includes(q),
+        (r.run.memo ?? "").toLowerCase().includes(q) ||
+        r.itemsText.toLowerCase().includes(q),
     )
     .filter((r) => isWithinDateRange(r.run.completedAt, dateFrom, dateTo));
 
@@ -92,7 +99,7 @@ export function MdRunList({ onEdit }: Props) {
     <section className="panel">
       <h2>周回履歴</h2>
       <input
-        placeholder="MD名・キャラ・メモで検索"
+        placeholder="MD名・キャラ・アイテム名・メモで検索"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         style={{ width: "100%", margin: "0.5rem 0" }}
@@ -129,6 +136,7 @@ export function MdRunList({ onEdit }: Props) {
                 onSort={toggleSort}
               />
               <th>討伐</th>
+              <th>獲得アイテム</th>
               <SortableHeader
                 label="クリア時間"
                 sortKey="clearTime"
@@ -141,7 +149,7 @@ export function MdRunList({ onEdit }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map(({ run: r, dungeonName, characterName, defeatedText }) => (
+            {sorted.map(({ run: r, dungeonName, characterName, defeatedText, itemsText }) => (
               <tr key={r.id}>
                 <td>{formatDateTime(r.completedAt)}</td>
                 <td>
@@ -152,6 +160,7 @@ export function MdRunList({ onEdit }: Props) {
                 </td>
                 <td>{characterName}</td>
                 <td>{defeatedText || "—"}</td>
+                <td style={{ whiteSpace: "normal" }}>{itemsText || "—"}</td>
                 <td>
                   {r.clearTimeSeconds !== undefined
                     ? formatClearTime(r.clearTimeSeconds)
@@ -182,7 +191,7 @@ export function MdRunList({ onEdit }: Props) {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={7} className="empty">
+                <td colSpan={8} className="empty">
                   {search || dateFrom || dateTo
                     ? "一致する周回記録がありません"
                     : "まだ周回記録がありません"}

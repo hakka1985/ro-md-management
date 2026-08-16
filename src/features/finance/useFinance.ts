@@ -65,6 +65,15 @@ export function useItemPrices() {
     await db.itemPrices.update(id, { archived });
   }
 
+  async function deleteItemPrice(id: string) {
+    await db.itemPrices.delete(id);
+  }
+
+  /** Re-inserts a previously-deleted item price as-is (same id) — powers the "元に戻す" undo toast. */
+  async function restoreItemPrice(record: ItemPrice) {
+    await db.itemPrices.add(record);
+  }
+
   /** Imports a previously-exported アイテムマスタ JSON — "replace" clears the table first, "merge" upserts by id (same semantics as the full export/import). */
   async function importItemPrices(
     rows: ItemPrice[],
@@ -81,6 +90,8 @@ export function useItemPrices() {
     upsertItemPrice,
     updateItemPrice,
     archiveItemPrice,
+    deleteItemPrice,
+    restoreItemPrice,
     importItemPrices,
   };
 }
@@ -146,7 +157,23 @@ export function useInventory() {
     });
   }
 
-  return { inventory, addStock, removeStock, setStock };
+  async function deleteInventoryItem(id: string) {
+    await db.inventoryItems.delete(id);
+  }
+
+  /** Re-inserts a previously-deleted inventory row as-is (same id) — powers the "元に戻す" undo toast. */
+  async function restoreInventoryItem(record: InventoryItem) {
+    await db.inventoryItems.add(record);
+  }
+
+  return {
+    inventory,
+    addStock,
+    removeStock,
+    setStock,
+    deleteInventoryItem,
+    restoreInventoryItem,
+  };
 }
 
 export function useTransactions() {
