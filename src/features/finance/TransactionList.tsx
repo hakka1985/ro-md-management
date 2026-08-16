@@ -363,6 +363,7 @@ export function TransactionList() {
                   {t.tags && t.tags.length > 0 && (
                     <span className="entity-list-sub"> 🏷{t.tags.join(" ")}</span>
                   )}
+                  {t.memo && <span className="entity-list-sub"> ・{t.memo}</span>}
                 </td>
                 <td>{t.type === "income" ? "売却" : "購入"}</td>
                 <td title={`${t.amount.toLocaleString()} z`}>

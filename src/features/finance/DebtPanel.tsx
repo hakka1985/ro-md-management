@@ -186,6 +186,7 @@ export function DebtPanel() {
                 dir={sortDir}
                 onSort={toggleSort}
               />
+              <th>メモ</th>
               <th>返済/回収を記録</th>
               <th>操作</th>
             </tr>
@@ -205,6 +206,7 @@ export function DebtPanel() {
                   <td title={`${remaining.toLocaleString()} z`}>
                     {settled ? "完済" : formatZ(remaining)}
                   </td>
+                  <td style={{ whiteSpace: "normal" }}>{d.memo || "—"}</td>
                   <td>
                     {!settled && (
                       <div className="inline-form" style={{ gap: "0.3rem" }}>
@@ -250,7 +252,7 @@ export function DebtPanel() {
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={7} className="empty">
+                <td colSpan={8} className="empty">
                   {search || dateFrom || dateTo
                     ? "一致する貸し借り記録がありません"
                     : "まだ貸し借り記録がありません"}
