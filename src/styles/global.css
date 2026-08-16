@@ -495,6 +495,20 @@ button:active {
 .md-grid-row-head {
   text-align: left !important;
   cursor: grab;
+  /* Sticks to the left edge on horizontal scroll — mirrors thead's sticky
+     top, so you never lose track of which row you're looking at either. */
+  position: sticky;
+  left: 0;
+  background: var(--panel-bg);
+  z-index: 1;
+}
+
+.md-grid-corner {
+  /* The one cell sticky on both axes (top-left of the grid) needs to sit
+     above both the sticky header row and the sticky row-head column. */
+  position: sticky;
+  left: 0;
+  z-index: 2;
 }
 
 .md-grid-col-head {

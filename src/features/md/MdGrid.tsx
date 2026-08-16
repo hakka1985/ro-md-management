@@ -50,9 +50,12 @@ function onDragOver(e: DragEvent) {
 }
 
 function characterSubLabel(c: Character): string {
-  const parts = [c.job, c.level ? `Lv${c.level}` : null, c.server].filter(
-    (p): p is string => !!p,
-  );
+  const parts = [
+    c.job,
+    c.level ? `Lv${c.level}` : null,
+    c.server,
+    c.account ? `垢:${c.account}` : null,
+  ].filter((p): p is string => !!p);
   return parts.join(" / ");
 }
 
@@ -393,7 +396,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
             <>
               <thead>
                 <tr>
-                  <th>MD</th>
+                  <th className="md-grid-corner">MD</th>
                   {activeCharacters.map((c) => (
                     <th
                       key={c.id}
@@ -440,7 +443,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
             <>
               <thead>
                 <tr>
-                  <th>キャラ</th>
+                  <th className="md-grid-corner">キャラ</th>
                   {activeDungeons.map((dungeon) => (
                     <th
                       key={dungeon.id}
