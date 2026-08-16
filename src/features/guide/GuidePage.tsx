@@ -1,7 +1,34 @@
+const TOC_SECTIONS = [
+  { id: "guide-onboarding", label: "🌟 はじめての初期設定" },
+  { id: "guide-md", label: "⚔️ MD進捗の運用" },
+  { id: "guide-finance", label: "💰 取引・在庫の運用" },
+  { id: "guide-cashflow", label: "💹 資金計画の運用" },
+  { id: "guide-goals", label: "🎯 目標の運用" },
+  { id: "guide-mvp", label: "👑 MVPカウンターの運用" },
+  { id: "guide-dashboard", label: "📊 ダッシュボードの見方" },
+  { id: "guide-revenue", label: "📈 収益タブ" },
+  { id: "guide-settings", label: "⚙️ 設定・データ移行" },
+  { id: "guide-notes", label: "⚠️ その他の注意点" },
+];
+
 export function GuidePage() {
   return (
     <div className="page">
       <section className="panel">
+        <h2>ガイド</h2>
+        <p className="hint">
+          知りたい項目をクリックすると、その場所にジャンプします。
+        </p>
+        <nav className="guide-toc">
+          {TOC_SECTIONS.map((s) => (
+            <a key={s.id} href={`#${s.id}`}>
+              {s.label}
+            </a>
+          ))}
+        </nav>
+      </section>
+
+      <section className="panel" id="guide-onboarding">
         <h2>🌟 はじめての初期設定</h2>
         <ul className="guide-list">
           <li>
@@ -52,7 +79,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-md">
         <h2>⚔️ MD進捗の運用</h2>
         <ul className="guide-list">
           <li>
@@ -157,7 +184,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-finance">
         <h2>💰 取引・在庫の運用</h2>
         <ul className="guide-list">
           <li>
@@ -264,7 +291,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-cashflow">
         <h2>💹 資金計画の運用</h2>
         <ul className="guide-list">
           <li>
@@ -292,7 +319,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-goals">
         <h2>🎯 目標の運用</h2>
         <ul className="guide-list">
           <li>
@@ -320,7 +347,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-mvp">
         <h2>👑 MVPカウンターの運用</h2>
         <ul className="guide-list">
           <li>
@@ -353,7 +380,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-dashboard">
         <h2>📊 ダッシュボードの見方</h2>
         <ul className="guide-list">
           <li>
@@ -427,7 +454,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-revenue">
         <h2>📈 収益タブ（詳細な統計・分析）</h2>
         <ul className="guide-list">
           <li>
@@ -476,7 +503,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-settings">
         <h2>⚙️ 設定・データ移行</h2>
         <ul className="guide-list">
           <li>
@@ -531,7 +558,7 @@ export function GuidePage() {
         </ul>
       </section>
 
-      <section className="panel">
+      <section className="panel" id="guide-notes">
         <h2>⚠️ その他の注意点</h2>
         <ul className="guide-list">
           <li>
