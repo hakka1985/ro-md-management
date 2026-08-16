@@ -1,6 +1,30 @@
 # RO管理ツール
 
-Ragnarok Onlineのマルチデポジションダンジョン(MD)周回・MVP討伐・売買資産を個人管理するためのツール。React + TypeScript + Vite製、データはブラウザのIndexedDB（Dexie.js）にのみ保存され、外部サーバーへは送信されない。複数PCで使う場合は設定タブのエクスポート/インポート（JSON）で同期する。
+Ragnarok OnlineのMD（マルチデポジションダンジョン）周回・MVP討伐・売買資産を個人管理するためのツール。React + TypeScript + Vite製、データはブラウザのIndexedDB（Dexie.js）にのみ保存され、外部サーバーへは送信されない。複数PCで使う場合は「設定」タブのエクスポート/インポート（JSON）で同期する。
+
+**公開先:** [https://hakka1985.github.io/ro-md-management/](https://hakka1985.github.io/ro-md-management/)（`main`へのpushで自動デプロイ、`.github/workflows/deploy.yml`）
+
+## 主な機能
+
+- **MD進捗**: キャラ×MDのグリッドで周回記録、CT（翌日/3日/週間）の自動判定、PT分配、複数キャラ一括記録
+- **MVPカウンター/マスタ**: 討伐記録、カード・ドロップ品の集計、MD進捗との自動連動
+- **取引・在庫**: 販売/購入/入手/消費の記録、在庫評価額、タグ付け・一括操作
+- **収益/ダッシュボード**: 実績利益・資産推移・MD別効率分析・週次/月次の振り返り、実績バッジ
+- **欲しいものリスト/資金計画/目標**: 購入見積り、優先順位付きの資金シミュレーション、短期・中期・長期の資金目標（欲しいものリストと連動可）
+- **PWA対応**: ホーム画面・デスクトップにインストール可能、オフラインでも起動可能
+- キャラクター・MD・MVP・アイテムの各マスタ管理、全体横断検索
+
+使い方の詳細はアプリ内の「ガイド」タブを参照。
+
+## 開発
+
+```bash
+npm install
+npm run dev      # 開発サーバー起動
+npm run build    # 型チェック（tsc -b）＋ビルド
+npm run lint     # oxlint
+npm run format   # prettier
+```
 
 ## 各マスタの初期値の登録方法
 
@@ -57,38 +81,3 @@ NPC固定売却価格など確定額が分かっているものだけを入れ�
 - **MVPマスタ**: 「MVPマスタ」タブ →「+ MVPを登録する」ダイアログ
 - **MDマスタ**: 「MDマスタ」タブ下部の「MD追加」フォーム
 - **アイテムマスタ**: 「アイテムマスタ」タブの登録フォーム（またはMDマスタにアイテムを追加すると自動登録される）
-
----
-
-# React + TypeScript + Vite
-
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
-
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
-```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
