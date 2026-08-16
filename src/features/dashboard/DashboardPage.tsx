@@ -34,6 +34,7 @@ import { formatDate } from "../../lib/date";
 import { BarChart } from "../../components/charts/BarChart";
 import { DivergingBarChart } from "../../components/charts/DivergingBarChart";
 import { VerticalBarChart } from "../../components/charts/VerticalBarChart";
+import { LineChart } from "../../components/charts/LineChart";
 import { AllocationBar } from "../../components/charts/AllocationBar";
 import { formatZ } from "../../lib/zeny";
 import { sortItems, type SortDir } from "../../lib/useTableSort";
@@ -480,7 +481,7 @@ export function DashboardPage({ onRecordCharacter }: Props) {
               </button>
             ))}
           </div>
-          <VerticalBarChart data={assetTrend} formatValue={formatZ} />
+          <LineChart data={assetTrend} formatValue={formatZ} />
         </section>
 
         <section className="panel">
