@@ -1,10 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { useDebts } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
-import { formatDateTime, isWithinDateRange } from "../../lib/date";
+import {
+  formatDateTime,
+  isWithinDateRange,
+  toDatetimeLocalValue,
+  fromDatetimeLocalValue,
+} from "../../lib/date";
 import { useTableSort } from "../../lib/useTableSort";
 import { SortableHeader } from "../../components/SortableHeader";
 import { DateRangeFilter } from "../../components/DateRangeFilter";
+import { Modal } from "../../components/Modal";
 import { useToast } from "../../components/toastContext";
 import type { DebtDirection, DebtEntry } from "../../db/types";
 
@@ -25,8 +31,103 @@ function sortValue(d: DebtEntry, key: string): string | number {
   }
 }
 
+interface DebtEditFormProps {
+  debt: DebtEntry;
+  onSave: (patch: Partial<Omit<DebtEntry, "id" | "createdAt">>) => void;
+  onClose: () => void;
+}
+
+function DebtEditForm({ debt, onSave, onClose }: DebtEditFormProps) {
+  const [direction, setDirection] = useState<DebtDirection>(debt.direction);
+  const [counterparty, setCounterparty] = useState(debt.counterparty);
+  const [amountInput, setAmountInput] = useState(String(debt.amount));
+  const [repaidInput, setRepaidInput] = useState(String(debt.repaidAmount));
+  const [date, setDate] = useState(toDatetimeLocalValue(debt.date));
+  const [memo, setMemo] = useState(debt.memo ?? "");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const amount = parseZeny(amountInput);
+    const repaidAmount = Math.min(parseZeny(repaidInput), amount);
+    if (!counterparty.trim() || amount <= 0 || !date) return;
+    onSave({
+      direction,
+      counterparty: counterparty.trim(),
+      amount,
+      repaidAmount,
+      date: fromDatetimeLocalValue(date),
+      memo: memo.trim() || undefined,
+    });
+  }
+
+  return (
+    <form className="stacked-form" onSubmit={handleSubmit}>
+      <h2>貸し借りを編集</h2>
+      <label className="checkbox-label">
+        <input
+          type="radio"
+          checked={direction === "borrowed"}
+          onChange={() => setDirection("borrowed")}
+        />
+        借りた
+      </label>
+      <label className="checkbox-label">
+        <input
+          type="radio"
+          checked={direction === "lent"}
+          onChange={() => setDirection("lent")}
+        />
+        貸した
+      </label>
+      <label>
+        相手
+        <input
+          value={counterparty}
+          onChange={(e) => setCounterparty(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        金額
+        <input
+          value={amountInput}
+          onChange={(e) => setAmountInput(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        返済/回収済み額（修正用）
+        <input
+          value={repaidInput}
+          onChange={(e) => setRepaidInput(e.target.value)}
+        />
+      </label>
+      <label>
+        日時
+        <input
+          type="datetime-local"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        メモ
+        <input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </label>
+      <div className="form-actions">
+        <button type="submit">保存</button>
+        <button type="button" onClick={onClose}>
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function DebtPanel() {
-  const { debts, addDebt, addRepayment, deleteDebt, restoreDebt } = useDebts();
+  const { debts, addDebt, addRepayment, updateDebt, deleteDebt, restoreDebt } =
+    useDebts();
   const { showUndo } = useToast();
 
   const [direction, setDirection] = useState<DebtDirection>("borrowed");
@@ -39,6 +140,8 @@ export function DebtPanel() {
   const [repaymentInputs, setRepaymentInputs] = useState<
     Record<string, string>
   >({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingDebt = (debts ?? []).find((d) => d.id === editingId) ?? null;
 
   const filtered = (debts ?? [])
     .filter((d) =>
@@ -228,6 +331,9 @@ export function DebtPanel() {
                     )}
                   </td>
                   <td>
+                    <button type="button" onClick={() => setEditingId(d.id)}>
+                      編集
+                    </button>{" "}
                     <button
                       type="button"
                       onClick={() => {
@@ -262,6 +368,19 @@ export function DebtPanel() {
           </tbody>
         </table>
       </div>
+
+      <Modal open={editingDebt !== null} onClose={() => setEditingId(null)}>
+        {editingDebt && (
+          <DebtEditForm
+            debt={editingDebt}
+            onSave={(patch) => {
+              updateDebt(editingDebt.id, patch);
+              setEditingId(null);
+            }}
+            onClose={() => setEditingId(null)}
+          />
+        )}
+      </Modal>
     </section>
   );
 }

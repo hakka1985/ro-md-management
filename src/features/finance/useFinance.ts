@@ -252,6 +252,13 @@ export function useDebts() {
     await db.debts.update(id, { repaidAmount });
   }
 
+  async function updateDebt(
+    id: string,
+    patch: Partial<Omit<DebtEntry, "id" | "createdAt">>,
+  ) {
+    await db.debts.update(id, patch);
+  }
+
   async function deleteDebt(id: string) {
     await db.debts.delete(id);
   }
@@ -261,5 +268,12 @@ export function useDebts() {
     await db.debts.add(record);
   }
 
-  return { debts, addDebt, addRepayment, deleteDebt, restoreDebt };
+  return {
+    debts,
+    addDebt,
+    addRepayment,
+    updateDebt,
+    deleteDebt,
+    restoreDebt,
+  };
 }

@@ -1,4 +1,4 @@
-import type { DragEvent } from "react";
+import { useState, type DragEvent, type FormEvent } from "react";
 import { useGoals } from "./useGoals";
 import { useWishlist } from "../wishlist/useWishlist";
 import {
@@ -10,9 +10,10 @@ import {
 import { useCharacters } from "../characters/useCharacters";
 import { useAppSettings } from "../settings/useAppSettings";
 import { getCurrentTotalAssets } from "../../lib/financeCalc";
-import { formatZ } from "../../lib/zeny";
+import { formatZ, parseZeny } from "../../lib/zeny";
 import { formatDate } from "../../lib/date";
 import { ReorderButtons } from "../../components/ReorderButtons";
+import { Modal } from "../../components/Modal";
 import { useToast } from "../../components/toastContext";
 import type { Goal, GoalTier } from "../../db/types";
 
@@ -26,8 +27,85 @@ function onDragOver(e: DragEvent) {
   e.preventDefault();
 }
 
+interface GoalEditFormProps {
+  goal: Goal;
+  onSave: (patch: Partial<Omit<Goal, "id" | "createdAt">>) => void;
+  onClose: () => void;
+}
+
+function GoalEditForm({ goal, onSave, onClose }: GoalEditFormProps) {
+  const [title, setTitle] = useState(goal.title);
+  const [tier, setTier] = useState<GoalTier>(goal.tier);
+  const [targetAmount, setTargetAmount] = useState(String(goal.targetAmount));
+  const [deadline, setDeadline] = useState(
+    goal.deadline ? new Date(goal.deadline).toISOString().slice(0, 10) : "",
+  );
+  const [memo, setMemo] = useState(goal.memo ?? "");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const amount = parseZeny(targetAmount);
+    if (!title.trim() || amount <= 0) return;
+    onSave({
+      title: title.trim(),
+      tier,
+      targetAmount: amount,
+      deadline: deadline ? new Date(deadline).getTime() : undefined,
+      memo: memo.trim() || undefined,
+    });
+  }
+
+  return (
+    <form className="stacked-form" onSubmit={handleSubmit}>
+      <h2>目標を編集</h2>
+      <label>
+        目標タイトル
+        <input
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        区分
+        <select value={tier} onChange={(e) => setTier(e.target.value as GoalTier)}>
+          <option value="short">短期</option>
+          <option value="mid">中期</option>
+          <option value="long">長期</option>
+        </select>
+      </label>
+      <label>
+        目標金額
+        <input
+          value={targetAmount}
+          onChange={(e) => setTargetAmount(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        期限（任意）
+        <input
+          type="date"
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+        />
+      </label>
+      <label>
+        メモ（任意）
+        <input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </label>
+      <div className="form-actions">
+        <button type="submit">保存</button>
+        <button type="button" onClick={onClose}>
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function GoalsList() {
-  const { goals, setAchieved, deleteGoal, restoreGoal, reorderGoal } =
+  const { goals, setAchieved, updateGoal, deleteGoal, restoreGoal, reorderGoal } =
     useGoals();
   const { items: wishlistItems } = useWishlist();
   const { showUndo } = useToast();
@@ -37,6 +115,8 @@ export function GoalsList() {
   const { characters } = useCharacters();
   const { debts } = useDebts();
   const { useNRate, baselineDate, baselineAmount } = useAppSettings();
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingGoal = goals.find((g) => g.id === editingId) ?? null;
 
   const totalAssets = getCurrentTotalAssets({
     transactions,
@@ -145,6 +225,9 @@ export function GoalsList() {
                         >
                           {goal.achieved ? "未達成に戻す" : "達成済みにする"}
                         </button>
+                        <button type="button" onClick={() => setEditingId(goal.id)}>
+                          編集
+                        </button>
                         <button
                           type="button"
                           onClick={() => {
@@ -172,6 +255,19 @@ export function GoalsList() {
           </section>
         );
       })}
+
+      <Modal open={editingGoal !== null} onClose={() => setEditingId(null)}>
+        {editingGoal && (
+          <GoalEditForm
+            goal={editingGoal}
+            onSave={(patch) => {
+              updateGoal(editingGoal.id, patch);
+              setEditingId(null);
+            }}
+            onClose={() => setEditingId(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

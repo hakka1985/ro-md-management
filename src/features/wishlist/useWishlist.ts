@@ -39,6 +39,13 @@ export function useWishlist() {
     await db.wishlistItems.update(id, { obtained });
   }
 
+  async function updateItem(
+    id: string,
+    patch: Partial<Omit<WishlistItem, "id" | "createdAt">>,
+  ) {
+    await db.wishlistItems.update(id, patch);
+  }
+
   async function deleteItem(id: string) {
     await db.wishlistItems.delete(id);
   }
@@ -64,5 +71,13 @@ export function useWishlist() {
     });
   }
 
-  return { items, addItem, setObtained, deleteItem, restoreItem, reorderItem };
+  return {
+    items,
+    addItem,
+    setObtained,
+    updateItem,
+    deleteItem,
+    restoreItem,
+    reorderItem,
+  };
 }

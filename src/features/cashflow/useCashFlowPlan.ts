@@ -40,8 +40,20 @@ export function useCashFlowPlan() {
     await db.cashFlowPlans.update(id, { done });
   }
 
+  async function updateEntry(
+    id: string,
+    patch: Partial<Omit<CashFlowPlanEntry, "id" | "createdAt">>,
+  ) {
+    await db.cashFlowPlans.update(id, patch);
+  }
+
   async function deleteEntry(id: string) {
     await db.cashFlowPlans.delete(id);
+  }
+
+  /** Re-inserts a previously-deleted entry as-is (same id) — powers the "元に戻す" undo toast. */
+  async function restoreEntry(record: CashFlowPlanEntry) {
+    await db.cashFlowPlans.add(record);
   }
 
   /** Drag-reorders entries by priority — same splice-and-renumber pattern as reorderDungeon/reorderItem. */
@@ -60,5 +72,13 @@ export function useCashFlowPlan() {
     });
   }
 
-  return { entries, addEntry, toggleDone, deleteEntry, reorderEntry };
+  return {
+    entries,
+    addEntry,
+    toggleDone,
+    updateEntry,
+    deleteEntry,
+    restoreEntry,
+    reorderEntry,
+  };
 }

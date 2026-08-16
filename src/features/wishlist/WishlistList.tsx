@@ -1,4 +1,4 @@
-import { useState, type DragEvent } from "react";
+import { useState, type DragEvent, type FormEvent } from "react";
 import { useWishlist } from "./useWishlist";
 import { useTransactions, useDebts } from "../finance/useFinance";
 import {
@@ -6,10 +6,11 @@ import {
   getWeeklyNetIncomeAverage,
   getOutstandingDebtBalance,
 } from "../../lib/financeCalc";
-import { formatZ } from "../../lib/zeny";
+import { formatZ, parseZeny } from "../../lib/zeny";
 import { useTableSort } from "../../lib/useTableSort";
 import { SortableHeader } from "../../components/SortableHeader";
 import { ReorderButtons } from "../../components/ReorderButtons";
+import { Modal } from "../../components/Modal";
 import { useToast } from "../../components/toastContext";
 import type { WishlistItem } from "../../db/types";
 
@@ -44,13 +45,84 @@ function sortValue(i: WishlistItem, key: string): string | number {
   }
 }
 
+interface WishlistEditFormProps {
+  item: WishlistItem;
+  onSave: (patch: Partial<Omit<WishlistItem, "id" | "createdAt">>) => void;
+  onClose: () => void;
+}
+
+function WishlistEditForm({ item, onSave, onClose }: WishlistEditFormProps) {
+  const [itemName, setItemName] = useState(item.itemName);
+  const [quantity, setQuantity] = useState(String(item.quantity));
+  const [unitCost, setUnitCost] = useState(String(item.unitCost));
+  const [memo, setMemo] = useState(item.memo ?? "");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const qty = Number(quantity);
+    const cost = parseZeny(unitCost);
+    if (!itemName.trim() || Number.isNaN(qty) || qty <= 0 || cost < 0) return;
+    onSave({
+      itemName: itemName.trim(),
+      quantity: qty,
+      unitCost: cost,
+      memo: memo.trim() || undefined,
+    });
+  }
+
+  return (
+    <form className="stacked-form" onSubmit={handleSubmit}>
+      <h2>欲しいものを編集</h2>
+      <label>
+        アイテム名
+        <input
+          value={itemName}
+          onChange={(e) => setItemName(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        欲しい数
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        1個あたりの想定コスト
+        <input
+          value={unitCost}
+          onChange={(e) => setUnitCost(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        メモ（任意）
+        <input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </label>
+      <div className="form-actions">
+        <button type="submit">保存</button>
+        <button type="button" onClick={onClose}>
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function WishlistList() {
-  const { items, setObtained, deleteItem, restoreItem, reorderItem } =
+  const { items, setObtained, updateItem, deleteItem, restoreItem, reorderItem } =
     useWishlist();
   const { showUndo } = useToast();
   const { transactions } = useTransactions();
   const { debts } = useDebts();
   const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingItem = items.find((i) => i.id === editingId) ?? null;
 
   const debtBalance = getOutstandingDebtBalance(debts);
   const outstandingBorrowed = debts
@@ -197,6 +269,9 @@ export function WishlistList() {
                     >
                       入手済みにする
                     </button>
+                    <button type="button" onClick={() => setEditingId(item.id)}>
+                      編集
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -247,6 +322,9 @@ export function WishlistList() {
                   >
                     未入手に戻す
                   </button>
+                  <button type="button" onClick={() => setEditingId(item.id)}>
+                    編集
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -270,6 +348,19 @@ export function WishlistList() {
           </ul>
         </>
       )}
+
+      <Modal open={editingItem !== null} onClose={() => setEditingId(null)}>
+        {editingItem && (
+          <WishlistEditForm
+            item={editingItem}
+            onSave={(patch) => {
+              updateItem(editingItem.id, patch);
+              setEditingId(null);
+            }}
+            onClose={() => setEditingId(null)}
+          />
+        )}
+      </Modal>
     </section>
   );
 }

@@ -17,14 +17,105 @@ import {
 import { formatZ, parseZeny } from "../../lib/zeny";
 import { VerticalBarChart } from "../../components/charts/VerticalBarChart";
 import { ReorderButtons } from "../../components/ReorderButtons";
+import { Modal } from "../../components/Modal";
+import { useToast } from "../../components/toastContext";
+import type { CashFlowPlanEntry, CashFlowPlanKind } from "../../db/types";
 
 function onDragOver(e: DragEvent) {
   e.preventDefault();
 }
 
+interface CashFlowEditFormProps {
+  entry: CashFlowPlanEntry;
+  onSave: (patch: Partial<Omit<CashFlowPlanEntry, "id" | "createdAt">>) => void;
+  onClose: () => void;
+}
+
+function CashFlowEditForm({ entry, onSave, onClose }: CashFlowEditFormProps) {
+  const [kind, setKind] = useState<CashFlowPlanKind>(entry.kind);
+  const [itemName, setItemName] = useState(entry.itemName);
+  const [quantity, setQuantity] = useState(String(entry.quantity));
+  const [unitPriceInput, setUnitPriceInput] = useState(String(entry.unitPrice));
+  const [memo, setMemo] = useState(entry.memo ?? "");
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const qty = Number(quantity);
+    const unitPrice = parseZeny(unitPriceInput);
+    if (!itemName.trim() || Number.isNaN(qty) || qty <= 0) return;
+    onSave({
+      kind,
+      itemName: itemName.trim(),
+      quantity: qty,
+      unitPrice,
+      memo: memo.trim() || undefined,
+    });
+  }
+
+  return (
+    <form className="stacked-form" onSubmit={handleSubmit}>
+      <h2>資金計画を編集</h2>
+      <label className="checkbox-label">
+        <input
+          type="radio"
+          checked={kind === "sell"}
+          onChange={() => setKind("sell")}
+        />
+        売る予定
+      </label>
+      <label className="checkbox-label">
+        <input
+          type="radio"
+          checked={kind === "buy"}
+          onChange={() => setKind("buy")}
+        />
+        買う予定
+      </label>
+      <label>
+        アイテム名
+        <input
+          value={itemName}
+          onChange={(e) => setItemName(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        数量
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={quantity}
+          onChange={(e) => setQuantity(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        単価
+        <input
+          value={unitPriceInput}
+          onChange={(e) => setUnitPriceInput(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        メモ（任意）
+        <input value={memo} onChange={(e) => setMemo(e.target.value)} />
+      </label>
+      <div className="form-actions">
+        <button type="submit">保存</button>
+        <button type="button" onClick={onClose}>
+          キャンセル
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function CashFlowList() {
-  const { entries, toggleDone, deleteEntry, reorderEntry } =
+  const { entries, toggleDone, updateEntry, deleteEntry, restoreEntry, reorderEntry } =
     useCashFlowPlan();
+  const { showUndo } = useToast();
   const { transactions } = useTransactions();
   const { inventory } = useInventory();
   const { itemPrices } = useItemPrices();
@@ -38,6 +129,8 @@ export function CashFlowList() {
     setCashFlowTarget,
   } = useAppSettings();
   const [targetInput, setTargetInput] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingEntry = entries.find((e) => e.id === editingId) ?? null;
 
   // Archived (除外) just hides a character from MD pickers/grids — it isn't
   // a delete, so their cash still counts toward the starting balance.
@@ -135,6 +228,7 @@ export function CashFlowList() {
                   <th>単価</th>
                   <th>金額</th>
                   <th>累計残高</th>
+                  <th>メモ</th>
                   <th>完了</th>
                   <th>操作</th>
                 </tr>
@@ -182,6 +276,9 @@ export function CashFlowList() {
                     >
                       {formatZ(runningBalance)}
                     </td>
+                    <td style={{ whiteSpace: "normal" }} draggable={false}>
+                      {entry.memo || "—"}
+                    </td>
                     <td>
                       <input
                         type="checkbox"
@@ -198,6 +295,9 @@ export function CashFlowList() {
                         canMoveUp={entries[0]?.id !== entry.id}
                         canMoveDown={entries[entries.length - 1]?.id !== entry.id}
                       />
+                      <button type="button" onClick={() => setEditingId(entry.id)}>
+                        編集
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -207,6 +307,9 @@ export function CashFlowList() {
                             )
                           ) {
                             deleteEntry(entry.id);
+                            showUndo(`「${entry.itemName}」を削除しました`, () =>
+                              restoreEntry(entry),
+                            );
                           }
                         }}
                       >
@@ -220,6 +323,19 @@ export function CashFlowList() {
           </div>
         </>
       )}
+
+      <Modal open={editingEntry !== null} onClose={() => setEditingId(null)}>
+        {editingEntry && (
+          <CashFlowEditForm
+            entry={editingEntry}
+            onSave={(patch) => {
+              updateEntry(editingEntry.id, patch);
+              setEditingId(null);
+            }}
+            onClose={() => setEditingId(null)}
+          />
+        )}
+      </Modal>
     </section>
   );
 }

@@ -43,6 +43,13 @@ export function useGoals() {
     await db.goals.update(id, { achieved });
   }
 
+  async function updateGoal(
+    id: string,
+    patch: Partial<Omit<Goal, "id" | "createdAt">>,
+  ) {
+    await db.goals.update(id, patch);
+  }
+
   async function deleteGoal(id: string) {
     await db.goals.delete(id);
   }
@@ -81,6 +88,7 @@ export function useGoals() {
     goals,
     addGoal,
     setAchieved,
+    updateGoal,
     deleteGoal,
     restoreGoal,
     reorderGoal,
