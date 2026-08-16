@@ -271,8 +271,10 @@ export function getCurrentTotalAssets(params: {
     params.baselineAmount,
   );
   const inventoryValue = getInventoryValue(params.inventory, params.itemPrices);
+  // Archived (除外) just hides a character from MD pickers/grids — it isn't
+  // a delete, so their cash still counts toward total assets.
   const characterCash = getTotalCharacterCash(
-    params.characters.filter((c) => !c.archived),
+    params.characters,
     params.useNRate,
   );
   const debtBalance = getOutstandingDebtBalance(params.debts);

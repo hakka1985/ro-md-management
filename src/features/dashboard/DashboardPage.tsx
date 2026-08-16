@@ -96,10 +96,9 @@ export function DashboardPage({ onRecordCharacter }: Props) {
     baselineAmount,
   );
   const inventoryValue = getInventoryValue(inventory, itemPrices);
-  const characterCash = getTotalCharacterCash(
-    characters.filter((c) => !c.archived),
-    useNRate,
-  );
+  // Archived (除外) just hides a character from MD pickers/grids — it isn't
+  // a delete, so their cash still counts toward total assets.
+  const characterCash = getTotalCharacterCash(characters, useNRate);
   const debtBalance = getOutstandingDebtBalance(debts);
   const totalAssets = realized + inventoryValue + characterCash + debtBalance;
   const efficiency = getMdEfficiency(runs, itemPrices).filter(

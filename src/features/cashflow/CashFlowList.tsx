@@ -39,13 +39,12 @@ export function CashFlowList() {
   } = useAppSettings();
   const [targetInput, setTargetInput] = useState("");
 
+  // Archived (除外) just hides a character from MD pickers/grids — it isn't
+  // a delete, so their cash still counts toward the starting balance.
   const currentBalance =
     getBaselineRealizedProfit(transactions, baselineDate, baselineAmount) +
     getInventoryValue(inventory, itemPrices) +
-    getTotalCharacterCash(
-      characters.filter((c) => !c.archived),
-      useNRate,
-    ) +
+    getTotalCharacterCash(characters, useNRate) +
     getOutstandingDebtBalance(debts);
 
   let running = currentBalance;
