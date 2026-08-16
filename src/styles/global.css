@@ -1041,12 +1041,19 @@ dialog.modal::backdrop {
   max-width: 68ch;
 }
 
-.guide-list li {
+/* Scoped to direct children only — a nested <ol> (the onboarding step
+   list) shouldn't get card styling on each of its own <li>s too. */
+.guide-list > li {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg);
   padding: 0.65rem 0.9rem;
   line-height: 1.7;
+}
+
+.guide-list li ol li {
+  line-height: 1.6;
+  margin-bottom: 0.4rem;
 }
 
 /* The bullet's bold lead-in (e.g. "<b>キャラクター登録:</b> ...") becomes
