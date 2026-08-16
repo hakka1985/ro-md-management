@@ -9,9 +9,7 @@ export function BaselineSettingsPanel() {
 
   async function handleBaselineSubmit(e: FormEvent) {
     e.preventDefault();
-    const negative = baselineInput.trim().startsWith("-");
-    const amount = parseZeny(baselineInput.replace(/^-/, ""));
-    await setBaseline(negative ? -amount : amount);
+    await setBaseline(parseZeny(baselineInput));
     setBaselineInput("");
   }
 

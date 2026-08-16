@@ -1,12 +1,18 @@
 // Ported from the reference tool's utils.parseZeny
 // (https://github.com/d44aki-lang/RO-tools). Accepts plain numbers, comma
-// grouping, and k/M/G suffixes (case-insensitive): 10k -> 10000,
-// 1.5M -> 1500000, 2G -> 2000000000. Display stays plain comma-separated
-// numbers after saving, per the reference tool's own guide notes.
+// grouping, an optional leading minus, and k/M/G suffixes
+// (case-insensitive): 10k -> 10000, 1.5M -> 1500000, 2G -> 2000000000,
+// -100M -> -100000000. Display stays plain comma-separated numbers after
+// saving, per the reference tool's own guide notes.
+//
+// NFKC-normalizes first so fullwidth IME input (－100Ｍ, １０ｋ) still
+// matches — without this, a fullwidth minus silently parsed as 0 instead
+// of negative (the plain-number fallback below doesn't recognize "－" as
+// a sign either), which read as "my negative baseline turned positive."
 export function parseZeny(input: string): number {
-  const s = input.replace(/,/g, "").trim().toLowerCase();
+  const s = input.normalize("NFKC").replace(/,/g, "").trim().toLowerCase();
   if (!s) return 0;
-  const m = s.match(/^([\d.]+)([kmg])?$/);
+  const m = s.match(/^(-?[\d.]+)([kmg])?$/);
   if (!m) return Number(s) || 0;
   const factors: Record<string, number> = {
     k: 1000,
