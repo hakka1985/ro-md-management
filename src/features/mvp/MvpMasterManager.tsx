@@ -2,6 +2,8 @@ import { useState, type FormEvent } from "react";
 import { useMvpMaster } from "./useMvp";
 import { Modal } from "../../components/Modal";
 import { MasterExportImportPanel } from "../../components/MasterExportImportPanel";
+import { useTableSort } from "../../lib/useTableSort";
+import { SortableHeader } from "../../components/SortableHeader";
 import type { MvpMaster } from "../../db/types";
 
 interface DialogProps {
@@ -13,6 +15,7 @@ function MvpDialog({ editing, onClose }: DialogProps) {
   const { addMvp, updateMvp } = useMvpMaster();
   const [name, setName] = useState(editing?.name ?? "");
   const [cardName, setCardName] = useState(editing?.cardName ?? "");
+  const [map, setMap] = useState(editing?.map ?? "");
   const [dropItems, setDropItems] = useState<string[]>(
     editing?.dropItems ?? [],
   );
@@ -49,6 +52,7 @@ function MvpDialog({ editing, onClose }: DialogProps) {
       await updateMvp(editing.id, {
         name: cleanedName,
         cardName: cardName.trim() || undefined,
+        map: map.trim() || undefined,
         dropItems: cleanedDropItems.length ? cleanedDropItems : undefined,
       });
       onClose();
@@ -56,6 +60,7 @@ function MvpDialog({ editing, onClose }: DialogProps) {
       const result = await addMvp({
         name: cleanedName,
         cardName: cardName.trim(),
+        map: map.trim(),
         dropItems: cleanedDropItems,
       });
       if (!result.ok) {
@@ -83,6 +88,10 @@ function MvpDialog({ editing, onClose }: DialogProps) {
       <label>
         カード名（任意）
         <input value={cardName} onChange={(e) => setCardName(e.target.value)} />
+      </label>
+      <label>
+        出現マップ（任意）
+        <input value={map} onChange={(e) => setMap(e.target.value)} />
       </label>
 
       <div className="stacked-form" style={{ gap: "0.4rem" }}>
@@ -129,6 +138,19 @@ function MvpDialog({ editing, onClose }: DialogProps) {
   );
 }
 
+function sortValue(m: MvpMaster, key: string): string | number {
+  switch (key) {
+    case "name":
+      return m.name;
+    case "cardName":
+      return m.cardName ?? "";
+    case "map":
+      return m.map ?? "";
+    default:
+      return "";
+  }
+}
+
 export function MvpMasterManager() {
   const { mvpMaster, archiveMvp, importMvpMaster } = useMvpMaster();
   const [dialogState, setDialogState] = useState<
@@ -141,7 +163,14 @@ export function MvpMasterManager() {
     (m) =>
       !q ||
       m.name.toLowerCase().includes(q) ||
-      (m.cardName ?? "").toLowerCase().includes(q),
+      (m.cardName ?? "").toLowerCase().includes(q) ||
+      (m.map ?? "").toLowerCase().includes(q) ||
+      (m.dropItems ?? []).some((d) => d.toLowerCase().includes(q)),
+  );
+
+  const { sorted, sortKey, sortDir, toggleSort } = useTableSort(
+    filtered,
+    sortValue,
   );
 
   return (
@@ -162,44 +191,72 @@ export function MvpMasterManager() {
           onChange={(e) => setSearch(e.target.value)}
           style={{ width: "100%", margin: "0.5rem 0" }}
         />
-        <ul className="entity-list">
-          {filtered.map((m) => (
-            <li key={m.id} className={m.archived ? "archived" : ""}>
-              <span className="entity-list-main">
-                {m.name}
-                <span className="entity-list-sub">
-                  {[
-                    m.cardName && `カード: ${m.cardName}`,
-                    m.dropItems?.length
-                      ? `ドロップ品: ${m.dropItems.join("、")}`
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" / ")}
-                </span>
-              </span>
-              <span className="entity-list-actions">
-                <button
-                  type="button"
-                  onClick={() => setDialogState({ open: true, editing: m })}
-                >
-                  編集
-                </button>
-                <button
-                  type="button"
-                  onClick={() => archiveMvp(m.id, !m.archived)}
-                >
-                  {m.archived ? "復元" : "除外"}
-                </button>
-              </span>
-            </li>
-          ))}
-          {filtered.length === 0 && (
-            <li className="empty">
-              {search ? "一致するMVPがありません" : "まだMVPが登録されていません"}
-            </li>
-          )}
-        </ul>
+        <div className="scrollable-table">
+          <table className="md-master-table">
+            <thead>
+              <tr>
+                <SortableHeader
+                  label="MVP名"
+                  sortKey="name"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <SortableHeader
+                  label="カード名"
+                  sortKey="cardName"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <th>ドロップ品</th>
+                <SortableHeader
+                  label="出現マップ"
+                  sortKey="map"
+                  activeKey={sortKey}
+                  dir={sortDir}
+                  onSort={toggleSort}
+                />
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((m) => (
+                <tr key={m.id} className={m.archived ? "archived" : ""}>
+                  <td style={{ textAlign: "left" }}>{m.name}</td>
+                  <td>{m.cardName || "—"}</td>
+                  <td style={{ textAlign: "left", whiteSpace: "normal" }}>
+                    {m.dropItems?.length ? m.dropItems.join("、") : "—"}
+                  </td>
+                  <td style={{ whiteSpace: "normal" }}>{m.map || "—"}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => setDialogState({ open: true, editing: m })}
+                    >
+                      編集
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => archiveMvp(m.id, !m.archived)}
+                    >
+                      {m.archived ? "復元" : "除外"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {sorted.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="empty">
+                    {search
+                      ? "一致するMVPがありません"
+                      : "まだMVPが登録されていません"}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
 
         <Modal
           open={dialogState.open}
