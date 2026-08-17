@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from "react";
 import { useMdRuns } from "./useMd";
-import { useItemPrices, useInventory } from "../finance/useFinance";
+import {
+  useItemPrices,
+  useInventory,
+  usePartyObtains,
+} from "../finance/useFinance";
 import { useMvpMaster, useMvpKills } from "../mvp/useMvp";
 import { parseClearTime } from "../../lib/date";
 import { parseZeny } from "../../lib/zeny";
@@ -27,6 +31,7 @@ export function MdDropPanel({
   const { logRun } = useMdRuns();
   const { itemPrices, upsertItemPrice } = useItemPrices();
   const { addStock } = useInventory();
+  const { addPartyObtain } = usePartyObtains();
   const { mvpMaster } = useMvpMaster();
   const { logKill } = useMvpKills();
 
@@ -43,6 +48,7 @@ export function MdDropPanel({
   );
   const [clearTime, setClearTime] = useState("");
   const [partySize, setPartySize] = useState("1");
+  const [partyMembersInput, setPartyMembersInput] = useState("");
   const [estimatedCostInput, setEstimatedCostInput] = useState("");
   const [quantities, setQuantities] = useState<Record<string, string>>(() =>
     Object.fromEntries(
@@ -67,11 +73,15 @@ export function MdDropPanel({
     }
 
     const items: Record<string, number> = {};
+    const totalQuantities: Record<string, number> = {};
     for (const name of itemNames) {
       const totalQty = Number(quantities[name] ?? "0");
       if (Number.isNaN(totalQty) || totalQty <= 0) continue;
       const myShare = partyShare(totalQty, party);
-      if (myShare > 0) items[name] = myShare;
+      if (myShare > 0) {
+        items[name] = myShare;
+        totalQuantities[name] = totalQty;
+      }
     }
 
     const completedAt = Date.now();
@@ -113,12 +123,30 @@ export function MdDropPanel({
 
     const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
     const newlyUnregistered: string[] = [];
+    const partyMembers = partyMembersInput
+      .split(/[,、\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
     for (const [name, qty] of Object.entries(items)) {
       if (!knownNames.has(name)) {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
         newlyUnregistered.push(name);
       }
-      await addStock(name, qty);
+      // PT分配の場合は addStock で直接足すのではなく、"PT在庫一覧" が集計
+      // する側の履歴として記録する（誰と何個ずつ分けたかをあとから振り返れる
+      // ように）。ソロ（PT人数1）は今まで通り在庫に直接加算するだけ。
+      if (party > 1) {
+        await addPartyObtain({
+          itemName: name,
+          totalQuantity: totalQuantities[name],
+          partySize: party,
+          members: partyMembers,
+          date: completedAt,
+          memo: `MD周回: ${dungeon.name}`,
+        });
+      } else {
+        await addStock(name, qty);
+      }
     }
 
     onClose();
@@ -175,6 +203,20 @@ export function MdDropPanel({
             onChange={(e) => setPartySize(e.target.value)}
           />
         </label>
+
+        {party > 1 && (
+          <label>
+            PTメンバー（自分以外、任意、スペース・カンマ区切りで複数可）
+            <input
+              placeholder="例: 相方A 相方B"
+              value={partyMembersInput}
+              onChange={(e) => setPartyMembersInput(e.target.value)}
+            />
+            <span className="hint">
+              獲得アイテムはこのメンバー構成で「PT在庫一覧」に履歴として残ります。
+            </span>
+          </label>
+        )}
 
         <label>
           消耗品コスト（任意、例: 10k）

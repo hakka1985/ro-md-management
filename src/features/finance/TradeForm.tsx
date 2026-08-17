@@ -4,6 +4,7 @@ import {
   useInventory,
   useTransactions,
   useDebts,
+  usePartyObtains,
 } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
 import { UnregisteredItemPrompt } from "./UnregisteredItemPrompt";
@@ -16,6 +17,7 @@ export function TradeForm() {
   const { inventory, addStock, removeStock } = useInventory();
   const { addTransaction } = useTransactions();
   const { addDebt } = useDebts();
+  const { addPartyObtain } = usePartyObtains();
 
   const [kind, setKind] = useState<TradeKind>("sell");
   const [itemName, setItemName] = useState("");
@@ -118,17 +120,36 @@ export function TradeForm() {
       setMessage(`購入を記録しました（${formatZ(amount)}、在庫に追加）。`);
     } else if (kind === "obtain") {
       // obtain: free items (event drops, giveaways, etc.) — stock only, no
-      // transaction, no PT分配 (solo-only; PT-shared obtains go through the
-      // dedicated "PT入手" panel instead, which keeps a real per-event
-      // history instead of just a mutable memo).
+      // transaction. Solo (party === 1) just bumps inventory directly; a
+      // PT-shared pickup instead goes through usePartyObtains, which keeps
+      // a real per-event history (item/total/party/members/myShare) that
+      // "PT在庫一覧" aggregates from, instead of blending untraceably into
+      // the plain stock counter.
       if (!activeItems.some((p) => p.itemName === name)) {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
         setUnregisteredNames((prev) => [...prev, name]);
       }
-      await addStock(name, qty);
-      setMessage(
-        `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
-      );
+      if (party > 1) {
+        const members = partyMembersInput
+          .split(/[,、\s]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const myShare = await addPartyObtain({
+          itemName: name,
+          totalQuantity: qty,
+          partySize: party,
+          members,
+          date: Date.now(),
+        });
+        setMessage(
+          `入手を記録しました（PT${party}人で分配、自分の取り分 ${myShare}個を在庫に追加、取引記録には計上されません。「PT在庫一覧」に履歴が残ります）。`,
+        );
+      } else {
+        await addStock(name, qty);
+        setMessage(
+          `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
+        );
+      }
     } else {
       // consume: used the item yourself (potion, enchant material, food buff,
       // etc.) — stock only decreases, no transaction, since this isn't a
@@ -238,7 +259,7 @@ export function TradeForm() {
           </label>
         )}
 
-        {kind === "sell" && (
+        {(kind === "sell" || kind === "obtain") && (
           <label>
             PT人数
             <input
@@ -267,11 +288,20 @@ export function TradeForm() {
             </span>
           </label>
         )}
-        {kind === "obtain" && (
-          <p className="hint">
-            PTで山分けした分は「入手」ではなく下の「PT入手」欄を使ってください。
-            自分の取り分の計算・履歴管理はそちらでまとめて行えます。
-          </p>
+        {kind === "obtain" && Number(partySize) > 1 && (
+          <label>
+            PTメンバー（自分以外、任意、スペース・カンマ区切りで複数可）
+            <input
+              placeholder="例: 相方A 相方B"
+              value={partyMembersInput}
+              onChange={(e) => setPartyMembersInput(e.target.value)}
+            />
+            <span className="hint">
+              入力した個数をPT人数で割った、自分の取り分だけが在庫に加算されます
+              （割り切れない場合は小数点のまま）。この入手は「PT在庫一覧」に
+              履歴として残ります。
+            </span>
+          </label>
         )}
 
         {kind === "sell" && (
