@@ -8,9 +8,10 @@ import {
 import { useMvpMaster, useMvpKills } from "../mvp/useMvp";
 import { parseClearTime } from "../../lib/date";
 import { parseZeny } from "../../lib/zeny";
-import { partyShare } from "../../lib/party";
+import { partyShare, parseMemberNames } from "../../lib/party";
 import { MvpDefeatCheckboxes } from "./MvpDefeatCheckboxes";
 import { defaultMvpDefeats } from "./ctCalc";
+import { PartyMemberPicker } from "../../components/PartyMemberPicker";
 import type { Character, MdDungeon } from "../../db/types";
 
 interface Props {
@@ -101,9 +102,7 @@ export function MdDropPanel({
     // MD連動: a defeated MOB whose name matches an MVP master entry logs a kill
     // automatically. Names are trimmed before comparing since MD MOB lists and
     // the MVP master are edited independently and can pick up stray whitespace.
-    const mvpByName = new Map(
-      (mvpMaster ?? []).map((m) => [m.name.trim(), m]),
-    );
+    const mvpByName = new Map((mvpMaster ?? []).map((m) => [m.name.trim(), m]));
     const unmatchedMvpNames: string[] = [];
     for (const [mobName, defeated] of Object.entries(mvpDefeats)) {
       if (!defeated) continue;
@@ -123,10 +122,7 @@ export function MdDropPanel({
 
     const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
     const newlyUnregistered: string[] = [];
-    const partyMembers = partyMembersInput
-      .split(/[,、\s]+/)
-      .map((s) => s.trim())
-      .filter(Boolean);
+    const partyMembers = parseMemberNames(partyMembersInput);
     for (const [name, qty] of Object.entries(items)) {
       if (!knownNames.has(name)) {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
@@ -206,11 +202,10 @@ export function MdDropPanel({
 
         {party > 1 && (
           <label>
-            PTメンバー（自分以外、任意、スペース・カンマ区切りで複数可）
-            <input
-              placeholder="例: 相方A 相方B"
+            PTメンバー（自分以外、任意）
+            <PartyMemberPicker
               value={partyMembersInput}
-              onChange={(e) => setPartyMembersInput(e.target.value)}
+              onChange={setPartyMembersInput}
             />
             <span className="hint">
               獲得アイテムはこのメンバー構成で「PT在庫一覧」に履歴として残ります。

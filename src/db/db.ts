@@ -14,10 +14,11 @@ import type {
   CashFlowPlanEntry,
   Goal,
   PartyObtainEntry,
+  PartyMember,
 } from "./types";
 
 // Bump alongside export payload migrations, see lib/exportImport.ts
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 export class RoDatabase extends Dexie {
   characters!: Table<Character, string>;
@@ -34,6 +35,7 @@ export class RoDatabase extends Dexie {
   cashFlowPlans!: Table<CashFlowPlanEntry, string>;
   goals!: Table<Goal, string>;
   partyObtains!: Table<PartyObtainEntry, string>;
+  partyMembers!: Table<PartyMember, string>;
 
   constructor() {
     super("ro-md-management");
@@ -216,6 +218,28 @@ export class RoDatabase extends Dexie {
       cashFlowPlans: "id, priority",
       goals: "id, tier, sortOrder",
       partyObtains: "id, itemName, date",
+    });
+
+    // v9: adds a partyMembers table — a saved name list so PT member
+    // fields (販売/入手/MD進捗のドロップ記録) can offer a pick list instead
+    // of retyping the same names every time.
+    this.version(9).stores({
+      characters: "id, name, server, archived",
+      mdDungeons: "id, name, category, archived",
+      mdRuns:
+        "id, characterId, dungeonId, completedAt, [dungeonId+characterId]",
+      mvpMaster: "id, name, archived",
+      mvpKills: "id, mvpId, characterId, killedAt, cardDropped",
+      financeTransactions: "id, type, date, characterId, source, sourceRefId",
+      itemPrices: "id, itemName, archived",
+      inventoryItems: "id, itemName",
+      wishlistItems: "id, itemName, obtained, createdAt",
+      appConfig: "key",
+      debts: "id, direction, date",
+      cashFlowPlans: "id, priority",
+      goals: "id, tier, sortOrder",
+      partyObtains: "id, itemName, date",
+      partyMembers: "id, name, archived",
     });
   }
 }

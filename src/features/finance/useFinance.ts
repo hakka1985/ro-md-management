@@ -10,6 +10,7 @@ import type {
   DebtEntry,
   DebtDirection,
   PartyObtainEntry,
+  PartyMember,
 } from "../../db/types";
 
 /** Shared by useInventory().addStock and usePartyObtains().addPartyObtain — both bump the same aggregate quantity, just from different origins. */
@@ -404,5 +405,55 @@ export function usePartyObtains() {
     deletePartyObtain,
     restorePartyObtain,
     setSettled,
+  };
+}
+
+/** A saved PT member name list — lets 販売/入手/MD進捗's member fields offer a pick list instead of retyping the same names every time. */
+export function usePartyMembers() {
+  const members = useLiveQuery(
+    () => db.partyMembers.orderBy("name").toArray(),
+    [],
+    [] as PartyMember[],
+  );
+
+  async function addPartyMember(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const existing = await db.partyMembers
+      .where("name")
+      .equals(trimmed)
+      .first();
+    if (existing) {
+      if (existing.archived)
+        await db.partyMembers.update(existing.id, { archived: false });
+      return;
+    }
+    await db.partyMembers.add({
+      id: newId(),
+      name: trimmed,
+      archived: false,
+      createdAt: Date.now(),
+    });
+  }
+
+  async function archivePartyMember(id: string, archived: boolean) {
+    await db.partyMembers.update(id, { archived });
+  }
+
+  async function deletePartyMember(id: string) {
+    await db.partyMembers.delete(id);
+  }
+
+  /** Re-inserts a previously-deleted member as-is (same id) — powers the "元に戻す" undo toast. */
+  async function restorePartyMember(record: PartyMember) {
+    await db.partyMembers.add(record);
+  }
+
+  return {
+    members,
+    addPartyMember,
+    archivePartyMember,
+    deletePartyMember,
+    restorePartyMember,
   };
 }

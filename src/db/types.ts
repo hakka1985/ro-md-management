@@ -160,6 +160,14 @@ export interface PartyObtainEntry {
   createdAt: number;
 }
 
+/** A saved PT member name — lets 販売/入手/MD進捗's member fields offer a pick list instead of retyping the same names every time. Just a name list, no per-member stats. */
+export interface PartyMember {
+  id: string;
+  name: string;
+  archived?: boolean;
+  createdAt: number;
+}
+
 export interface WishlistItem {
   id: string;
   itemName: string;

@@ -7,7 +7,9 @@ import {
   usePartyObtains,
 } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
+import { parseMemberNames } from "../../lib/party";
 import { UnregisteredItemPrompt } from "./UnregisteredItemPrompt";
+import { PartyMemberPicker } from "../../components/PartyMemberPicker";
 import type { FinanceType } from "../../db/types";
 
 type TradeKind = "sell" | "buy" | "obtain" | "consume";
@@ -82,10 +84,7 @@ export function TradeForm() {
       // each named member's share is money owed *to* them, not yet handed
       // over — "borrowed" (負債) so it reduces total assets until repaid,
       // mirroring "this cash isn't fully mine yet."
-      const partyMembers = partyMembersInput
-        .split(/[,、\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
+      const partyMembers = parseMemberNames(partyMembersInput);
       for (const member of partyMembers) {
         await addDebt({
           direction: "borrowed",
@@ -130,10 +129,7 @@ export function TradeForm() {
         setUnregisteredNames((prev) => [...prev, name]);
       }
       if (party > 1) {
-        const members = partyMembersInput
-          .split(/[,、\s]+/)
-          .map((s) => s.trim())
-          .filter(Boolean);
+        const members = parseMemberNames(partyMembersInput);
         const myShare = await addPartyObtain({
           itemName: name,
           totalQuantity: qty,
@@ -274,15 +270,19 @@ export function TradeForm() {
 
         {kind === "sell" && Number(partySize) > 1 && (
           <label>
-            PTメンバー（分配相手、任意、スペース・カンマ区切りで複数可）
-            <input
-              placeholder="例: 相方A 相方B"
+            PTメンバー（分配相手、任意）
+            <PartyMemberPicker
               value={partyMembersInput}
-              onChange={(e) => setPartyMembersInput(e.target.value)}
+              onChange={setPartyMembersInput}
             />
             <span className="hint">
-              名前を入力すると、それぞれに分配額（
-              {formatZ(Math.floor(parseZeny(unitPriceInput) / Math.max(1, Number(partySize) || 1)) * Number(quantity || "0"))}
+              選択・入力すると、それぞれに分配額（
+              {formatZ(
+                Math.floor(
+                  parseZeny(unitPriceInput) /
+                    Math.max(1, Number(partySize) || 1),
+                ) * Number(quantity || "0"),
+              )}
               ）分の「貸し借り」（負債）が自動で記録されます。「貸し借り」タブで
               支払い済みを記録できます。
             </span>
@@ -290,11 +290,10 @@ export function TradeForm() {
         )}
         {kind === "obtain" && Number(partySize) > 1 && (
           <label>
-            PTメンバー（自分以外、任意、スペース・カンマ区切りで複数可）
-            <input
-              placeholder="例: 相方A 相方B"
+            PTメンバー（自分以外、任意）
+            <PartyMemberPicker
               value={partyMembersInput}
-              onChange={(e) => setPartyMembersInput(e.target.value)}
+              onChange={setPartyMembersInput}
             />
             <span className="hint">
               入力した個数をPT人数で割った、自分の取り分だけが在庫に加算されます

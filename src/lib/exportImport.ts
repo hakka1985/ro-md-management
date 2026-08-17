@@ -14,6 +14,7 @@ import type {
   CashFlowPlanEntry,
   Goal,
   PartyObtainEntry,
+  PartyMember,
 } from "../db/types";
 
 export interface ExportPayload {
@@ -34,6 +35,7 @@ export interface ExportPayload {
     cashFlowPlans: CashFlowPlanEntry[];
     goals: Goal[];
     partyObtains: PartyObtainEntry[];
+    partyMembers: PartyMember[];
   };
 }
 
@@ -56,6 +58,7 @@ export async function exportAllData(): Promise<ExportPayload> {
       cashFlowPlans: await db.cashFlowPlans.toArray(),
       goals: await db.goals.toArray(),
       partyObtains: await db.partyObtains.toArray(),
+      partyMembers: await db.partyMembers.toArray(),
     },
   }));
 }
@@ -159,6 +162,13 @@ const migrations: Record<number, (p: any) => any> = {
       partyObtains: p.data.partyObtains ?? [],
     },
   }),
+  8: (p) => ({
+    ...p,
+    data: {
+      ...p.data,
+      partyMembers: p.data.partyMembers ?? [],
+    },
+  }),
 };
 
 function migrateExport(payload: ExportPayload): ExportPayload {
@@ -209,6 +219,7 @@ function validateExportPayload(raw: unknown): ExportPayload {
     "cashFlowPlans",
     "goals",
     "partyObtains",
+    "partyMembers",
   ] as const;
   for (const table of optionalTables) {
     if (data[table] === undefined) data[table] = [];
@@ -260,5 +271,6 @@ export async function importAllData(
     await db.cashFlowPlans.bulkPut(migrated.data.cashFlowPlans);
     await db.goals.bulkPut(migrated.data.goals);
     await db.partyObtains.bulkPut(migrated.data.partyObtains);
+    await db.partyMembers.bulkPut(migrated.data.partyMembers);
   });
 }

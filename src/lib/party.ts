@@ -2,3 +2,11 @@
 export function partyShare(totalQty: number, party: number): number {
   return Math.round((totalQty / party) * 100) / 100;
 }
+
+/** Splits a free-typed "PTメンバー" field (space/comma/、-separated) into individual names, trimmed and with blanks dropped. */
+export function parseMemberNames(input: string): string[] {
+  return input
+    .split(/[,、\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
