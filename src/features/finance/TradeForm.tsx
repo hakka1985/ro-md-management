@@ -5,6 +5,7 @@ import {
   useTransactions,
   useDebts,
   usePartyObtains,
+  usePartyMembers,
 } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
 import { parseMemberNames } from "../../lib/party";
@@ -20,6 +21,7 @@ export function TradeForm() {
   const { addTransaction } = useTransactions();
   const { addDebt } = useDebts();
   const { addPartyObtain } = usePartyObtains();
+  const { addPartyMember } = usePartyMembers();
 
   const [kind, setKind] = useState<TradeKind>("sell");
   const [itemName, setItemName] = useState("");
@@ -86,6 +88,10 @@ export function TradeForm() {
       // mirroring "this cash isn't fully mine yet."
       const partyMembers = parseMemberNames(partyMembersInput);
       for (const member of partyMembers) {
+        // Free-typed names not already in the PT member master are
+        // registered automatically — addPartyMember no-ops for a name
+        // that's already there, so this is safe to call every time.
+        await addPartyMember(member);
         await addDebt({
           direction: "borrowed",
           counterparty: member,
@@ -130,6 +136,7 @@ export function TradeForm() {
       }
       if (party > 1) {
         const members = parseMemberNames(partyMembersInput);
+        for (const member of members) await addPartyMember(member);
         const myShare = await addPartyObtain({
           itemName: name,
           totalQuantity: qty,

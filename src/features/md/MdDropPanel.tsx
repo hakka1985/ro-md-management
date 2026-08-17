@@ -4,6 +4,7 @@ import {
   useItemPrices,
   useInventory,
   usePartyObtains,
+  usePartyMembers,
 } from "../finance/useFinance";
 import { useMvpMaster, useMvpKills } from "../mvp/useMvp";
 import { parseClearTime } from "../../lib/date";
@@ -33,6 +34,7 @@ export function MdDropPanel({
   const { itemPrices, upsertItemPrice } = useItemPrices();
   const { addStock } = useInventory();
   const { addPartyObtain } = usePartyObtains();
+  const { addPartyMember } = usePartyMembers();
   const { mvpMaster } = useMvpMaster();
   const { logKill } = useMvpKills();
 
@@ -123,6 +125,7 @@ export function MdDropPanel({
     const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
     const newlyUnregistered: string[] = [];
     const partyMembers = parseMemberNames(partyMembersInput);
+    for (const member of partyMembers) await addPartyMember(member);
     for (const [name, qty] of Object.entries(items)) {
       if (!knownNames.has(name)) {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
