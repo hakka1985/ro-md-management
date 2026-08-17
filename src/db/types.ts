@@ -155,6 +155,8 @@ export interface PartyObtainEntry {
   myShare: number;
   date: number;
   memo?: string;
+  /** Manually marked once this batch has actually been resolved (sold and its proceeds distributed via 貸し借り, or personally consumed) — items aren't individually tracked once merged into inventory, so there's no way to auto-detect this from a later sell/consume record. */
+  settled?: boolean;
   createdAt: number;
 }
 

@@ -393,11 +393,16 @@ export function usePartyObtains() {
     await bumpInventoryStock(record.itemName, record.myShare);
   }
 
+  async function setSettled(id: string, settled: boolean) {
+    await db.partyObtains.update(id, { settled });
+  }
+
   return {
     entries,
     addPartyObtain,
     updatePartyObtain,
     deletePartyObtain,
     restorePartyObtain,
+    setSettled,
   };
 }
