@@ -127,7 +127,19 @@ export function TradeForm() {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
         setUnregisteredNames((prev) => [...prev, name]);
       }
-      await addStock(name, myShare);
+      // No money changes hands here (unlike sell's PT分配), so there's
+      // nothing to owe anyone — but since "入手" never creates a
+      // transaction, the PT context would otherwise vanish entirely the
+      // moment this saves. A memo is the only place left to keep it.
+      const partyMembers = partyMembersInput
+        .split(/[,、\s]+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const obtainMemo =
+        party > 1
+          ? `PT${party}人で分配${partyMembers.length > 0 ? `（${partyMembers.join("・")}）` : ""}`
+          : undefined;
+      await addStock(name, myShare, obtainMemo);
       setMessage(
         party > 1
           ? `入手を記録しました（PT${party}人で分配、自分の取り分 ${myShare}個を在庫に追加、取引記録には計上されません）。`
@@ -256,20 +268,28 @@ export function TradeForm() {
           </label>
         )}
 
-        {kind === "sell" && Number(partySize) > 1 && (
+        {(kind === "sell" || kind === "obtain") && Number(partySize) > 1 && (
           <label>
-            PTメンバー（分配相手、任意、スペース・カンマ区切りで複数可）
+            PTメンバー（任意、スペース・カンマ区切りで複数可）
             <input
               placeholder="例: 相方A 相方B"
               value={partyMembersInput}
               onChange={(e) => setPartyMembersInput(e.target.value)}
             />
-            <span className="hint">
-              名前を入力すると、それぞれに分配額（
-              {formatZ(Math.floor(parseZeny(unitPriceInput) / Math.max(1, Number(partySize) || 1)) * Number(quantity || "0"))}
-              ）分の「貸し借り」（負債）が自動で記録されます。「貸し借り」タブで
-              支払い済みを記録できます。
-            </span>
+            {kind === "sell" ? (
+              <span className="hint">
+                名前を入力すると、それぞれに分配額（
+                {formatZ(Math.floor(parseZeny(unitPriceInput) / Math.max(1, Number(partySize) || 1)) * Number(quantity || "0"))}
+                ）分の「貸し借り」（負債）が自動で記録されます。「貸し借り」タブで
+                支払い済みを記録できます。
+              </span>
+            ) : (
+              <span className="hint">
+                入手はお金のやり取りがないため貸し借りは作られませんが、名前を
+                入力すると在庫のメモに「PT{Number(partySize) || 1}人で分配（メンバー名）」
+                として残るので、後からこの分がPT分配だったと分かるようになります。
+              </span>
+            )}
           </label>
         )}
 

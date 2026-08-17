@@ -9,8 +9,13 @@ import type { InventoryItem } from "../../db/types";
 const STALE_DAYS = 14;
 
 export function InventoryList() {
-  const { inventory, setStock, deleteInventoryItem, restoreInventoryItem } =
-    useInventory();
+  const {
+    inventory,
+    setStock,
+    updateInventoryMemo,
+    deleteInventoryItem,
+    restoreInventoryItem,
+  } = useInventory();
   const { itemPrices, upsertItemPrice } = useItemPrices();
   const { transactions } = useTransactions();
   const { showUndo } = useToast();
@@ -81,13 +86,18 @@ export function InventoryList() {
     upsertItemPrice({ itemName, expectedPrice: parseZeny(value) });
   }
 
+  function handleMemoBlur(id: string, value: string) {
+    updateInventoryMemo(id, value.trim());
+  }
+
   return (
     <section className="panel">
       <h2>在庫一覧</h2>
       <p className="hint">
-        数量・想定単価欄を直接書き換えると、取引履歴を増やさずに更新できます。
+        数量・想定単価・メモ欄を直接書き換えると、取引履歴を増やさずに更新できます。
         🔥は評価額が高いのに{STALE_DAYS}日以上売れていない（または一度も売っていない）在庫です。売り時かもしれません。
         間違って登録した行は「削除」で取り消せます（取引履歴・アイテムマスタには影響しません）。
+        PT分配で「入手」を記録すると、メモに自動でPT人数・メンバー名が残ります。
       </p>
       <input
         placeholder="アイテム名で検索"
@@ -127,6 +137,7 @@ export function InventoryList() {
                 dir={sortDir}
                 onSort={toggleSort}
               />
+              <th>メモ</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -181,6 +192,15 @@ export function InventoryList() {
                     {formatZ(i.quantity * price)}
                   </td>
                   <td>
+                    <input
+                      key={i.memo ?? ""}
+                      defaultValue={i.memo ?? ""}
+                      placeholder="—"
+                      onBlur={(e) => handleMemoBlur(i.id, e.target.value)}
+                      style={{ width: "10rem" }}
+                    />
+                  </td>
+                  <td>
                     <button
                       type="button"
                       onClick={() => {
@@ -205,7 +225,7 @@ export function InventoryList() {
             })}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={5} className="empty">
+                <td colSpan={6} className="empty">
                   {search ? "一致するアイテムがありません" : "在庫はありません"}
                 </td>
               </tr>

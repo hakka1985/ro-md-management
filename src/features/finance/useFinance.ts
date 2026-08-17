@@ -103,7 +103,7 @@ export function useInventory() {
     [] as InventoryItem[],
   );
 
-  async function addStock(itemName: string, quantity: number) {
+  async function addStock(itemName: string, quantity: number, memo?: string) {
     const existing = await db.inventoryItems
       .where("itemName")
       .equals(itemName)
@@ -111,6 +111,10 @@ export function useInventory() {
     if (existing) {
       await db.inventoryItems.update(existing.id, {
         quantity: existing.quantity + quantity,
+        // Only overwrites when a new memo is actually given — a plain MD
+        // drop/purchase addition shouldn't silently wipe out an earlier
+        // note (e.g. who a PT-split obtain was shared with).
+        ...(memo ? { memo } : {}),
         updatedAt: Date.now(),
       });
       return;
@@ -119,6 +123,7 @@ export function useInventory() {
       id: newId(),
       itemName,
       quantity,
+      memo: memo || undefined,
       updatedAt: Date.now(),
     });
   }
@@ -157,6 +162,10 @@ export function useInventory() {
     });
   }
 
+  async function updateInventoryMemo(id: string, memo: string) {
+    await db.inventoryItems.update(id, { memo: memo || undefined });
+  }
+
   async function deleteInventoryItem(id: string) {
     await db.inventoryItems.delete(id);
   }
@@ -171,6 +180,7 @@ export function useInventory() {
     addStock,
     removeStock,
     setStock,
+    updateInventoryMemo,
     deleteInventoryItem,
     restoreInventoryItem,
   };

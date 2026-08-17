@@ -134,6 +134,8 @@ export interface InventoryItem {
   id: string;
   itemName: string;
   quantity: number;
+  /** Free-text note — e.g. who a PT-split obtain was shared with, since "入手" never creates a transaction to hang that context on otherwise. */
+  memo?: string;
   updatedAt: number;
 }
 
