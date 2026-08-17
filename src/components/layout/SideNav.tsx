@@ -5,6 +5,7 @@ export type TabKey =
   | "md"
   | "mdMaster"
   | "finance"
+  | "partyObtain"
   | "itemMaster"
   | "revenue"
   | "wishlist"
@@ -31,6 +32,7 @@ const NAV_GROUPS: NavGroup[] = [
       { key: "mvp", label: "👑 MVPカウンター" },
       { key: "md", label: "⚔️ MD進捗" },
       { key: "finance", label: "💰 取引・在庫" },
+      { key: "partyObtain", label: "🎉 PT在庫一覧" },
       { key: "revenue", label: "📈 収益" },
       { key: "wishlist", label: "🎁 欲しい物" },
       { key: "cashFlow", label: "💹 資金計画" },

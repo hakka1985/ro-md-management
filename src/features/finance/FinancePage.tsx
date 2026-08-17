@@ -2,7 +2,6 @@ import { TradeForm } from "./TradeForm";
 import { InventoryList } from "./InventoryList";
 import { TransactionList } from "./TransactionList";
 import { DebtPanel } from "./DebtPanel";
-import { PartyObtainPanel } from "./PartyObtainPanel";
 
 export function FinancePage() {
   return (
@@ -11,7 +10,6 @@ export function FinancePage() {
         <TradeForm />
         <InventoryList />
       </div>
-      <PartyObtainPanel />
       <TransactionList />
       <DebtPanel />
     </div>

@@ -7,6 +7,7 @@ import { MdPage } from "../../features/md/MdPage";
 import type { MdRecordTarget } from "../../features/md/MdGrid";
 import { MdMasterPage } from "../../features/md/MdMasterPage";
 import { FinancePage } from "../../features/finance/FinancePage";
+import { PartyObtainPage } from "../../features/finance/PartyObtainPage";
 import { ItemMasterPage } from "../../features/finance/ItemMasterPage";
 import { RevenuePage } from "../../features/revenue/RevenuePage";
 import { WishlistPage } from "../../features/wishlist/WishlistPage";
@@ -26,6 +27,7 @@ const VALID_TABS: TabKey[] = [
   "md",
   "mdMaster",
   "finance",
+  "partyObtain",
   "itemMaster",
   "revenue",
   "wishlist",
@@ -100,6 +102,7 @@ export function AppShell() {
         )}
         {activeTab === "mdMaster" && <MdMasterPage />}
         {activeTab === "finance" && <FinancePage />}
+        {activeTab === "partyObtain" && <PartyObtainPage />}
         {activeTab === "itemMaster" && <ItemMasterPage />}
         {activeTab === "revenue" && <RevenuePage />}
         {activeTab === "wishlist" && <WishlistPage />}
