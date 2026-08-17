@@ -13,10 +13,11 @@ import type {
   DebtEntry,
   CashFlowPlanEntry,
   Goal,
+  PartyObtainEntry,
 } from "./types";
 
 // Bump alongside export payload migrations, see lib/exportImport.ts
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 export class RoDatabase extends Dexie {
   characters!: Table<Character, string>;
@@ -32,6 +33,7 @@ export class RoDatabase extends Dexie {
   debts!: Table<DebtEntry, string>;
   cashFlowPlans!: Table<CashFlowPlanEntry, string>;
   goals!: Table<Goal, string>;
+  partyObtains!: Table<PartyObtainEntry, string>;
 
   constructor() {
     super("ro-md-management");
@@ -191,6 +193,29 @@ export class RoDatabase extends Dexie {
       debts: "id, direction, date",
       cashFlowPlans: "id, priority",
       goals: "id, tier, sortOrder",
+    });
+
+    // v8: adds a partyObtains table — 入手 was stock-only with no
+    // persisted record, so a PT-shared pickup's party context (and how
+    // much of a stack came from it) had nowhere to live and was lost the
+    // moment it saved. This gives PT-split obtains their own history,
+    // separate from solo 入手 which stays a simple stock bump.
+    this.version(8).stores({
+      characters: "id, name, server, archived",
+      mdDungeons: "id, name, category, archived",
+      mdRuns:
+        "id, characterId, dungeonId, completedAt, [dungeonId+characterId]",
+      mvpMaster: "id, name, archived",
+      mvpKills: "id, mvpId, characterId, killedAt, cardDropped",
+      financeTransactions: "id, type, date, characterId, source, sourceRefId",
+      itemPrices: "id, itemName, archived",
+      inventoryItems: "id, itemName",
+      wishlistItems: "id, itemName, obtained, createdAt",
+      appConfig: "key",
+      debts: "id, direction, date",
+      cashFlowPlans: "id, priority",
+      goals: "id, tier, sortOrder",
+      partyObtains: "id, itemName, date",
     });
   }
 }

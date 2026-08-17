@@ -1,6 +1,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../../db/db";
 import { newId } from "../../lib/id";
+import { partyShare } from "../../lib/party";
 import type {
   ItemPrice,
   InventoryItem,
@@ -8,7 +9,29 @@ import type {
   FinanceSource,
   DebtEntry,
   DebtDirection,
+  PartyObtainEntry,
 } from "../../db/types";
+
+/** Shared by useInventory().addStock and usePartyObtains().addPartyObtain — both bump the same aggregate quantity, just from different origins. */
+async function bumpInventoryStock(itemName: string, quantity: number) {
+  const existing = await db.inventoryItems
+    .where("itemName")
+    .equals(itemName)
+    .first();
+  if (existing) {
+    await db.inventoryItems.update(existing.id, {
+      quantity: existing.quantity + quantity,
+      updatedAt: Date.now(),
+    });
+    return;
+  }
+  await db.inventoryItems.add({
+    id: newId(),
+    itemName,
+    quantity,
+    updatedAt: Date.now(),
+  });
+}
 
 export function useItemPrices() {
   const itemPrices = useLiveQuery(
@@ -103,29 +126,8 @@ export function useInventory() {
     [] as InventoryItem[],
   );
 
-  async function addStock(itemName: string, quantity: number, memo?: string) {
-    const existing = await db.inventoryItems
-      .where("itemName")
-      .equals(itemName)
-      .first();
-    if (existing) {
-      await db.inventoryItems.update(existing.id, {
-        quantity: existing.quantity + quantity,
-        // Only overwrites when a new memo is actually given — a plain MD
-        // drop/purchase addition shouldn't silently wipe out an earlier
-        // note (e.g. who a PT-split obtain was shared with).
-        ...(memo ? { memo } : {}),
-        updatedAt: Date.now(),
-      });
-      return;
-    }
-    await db.inventoryItems.add({
-      id: newId(),
-      itemName,
-      quantity,
-      memo: memo || undefined,
-      updatedAt: Date.now(),
-    });
+  async function addStock(itemName: string, quantity: number) {
+    await bumpInventoryStock(itemName, quantity);
   }
 
   async function removeStock(itemName: string, quantity: number) {
@@ -312,5 +314,90 @@ export function useDebts() {
     updateDebt,
     deleteDebt,
     restoreDebt,
+  };
+}
+
+/**
+ * PT-shared obtains (event MD drops split among a party, etc.), kept as
+ * their own history — unlike solo 入手 (a bare stock bump with no record),
+ * each entry remembers the total collected, party size/members, and this
+ * account's computed share, so a mixed-origin stack can later be broken
+ * back down into "how much came from which PT run."
+ */
+export function usePartyObtains() {
+  const entries = useLiveQuery(
+    () => db.partyObtains.orderBy("date").reverse().toArray(),
+    [],
+    [] as PartyObtainEntry[],
+  );
+
+  async function addPartyObtain(input: {
+    itemName: string;
+    totalQuantity: number;
+    partySize: number;
+    members: string[];
+    date: number;
+    memo?: string;
+  }): Promise<number> {
+    const myShare = partyShare(input.totalQuantity, input.partySize);
+    await db.partyObtains.add({
+      id: newId(),
+      itemName: input.itemName,
+      totalQuantity: input.totalQuantity,
+      partySize: input.partySize,
+      members: input.members,
+      myShare,
+      date: input.date,
+      memo: input.memo || undefined,
+      createdAt: Date.now(),
+    });
+    await bumpInventoryStock(input.itemName, myShare);
+    return myShare;
+  }
+
+  /** Recomputes myShare from the patched total/partySize and reconciles the delta (or a full move, if itemName changed) against inventory. */
+  async function updatePartyObtain(
+    id: string,
+    patch: Partial<
+      Pick<
+        PartyObtainEntry,
+        "itemName" | "totalQuantity" | "partySize" | "members" | "date" | "memo"
+      >
+    >,
+  ) {
+    const existing = await db.partyObtains.get(id);
+    if (!existing) return;
+    const nextItemName = patch.itemName ?? existing.itemName;
+    const nextTotal = patch.totalQuantity ?? existing.totalQuantity;
+    const nextPartySize = patch.partySize ?? existing.partySize;
+    const nextShare = partyShare(nextTotal, nextPartySize);
+    if (nextItemName !== existing.itemName) {
+      await bumpInventoryStock(existing.itemName, -existing.myShare);
+      await bumpInventoryStock(nextItemName, nextShare);
+    } else if (nextShare !== existing.myShare) {
+      await bumpInventoryStock(existing.itemName, nextShare - existing.myShare);
+    }
+    await db.partyObtains.update(id, { ...patch, myShare: nextShare });
+  }
+
+  async function deletePartyObtain(id: string) {
+    const entry = await db.partyObtains.get(id);
+    if (!entry) return;
+    await bumpInventoryStock(entry.itemName, -entry.myShare);
+    await db.partyObtains.delete(id);
+  }
+
+  /** Re-inserts a previously-deleted entry as-is (same id) and re-applies its share to inventory — powers the "元に戻す" undo toast. */
+  async function restorePartyObtain(record: PartyObtainEntry) {
+    await db.partyObtains.add(record);
+    await bumpInventoryStock(record.itemName, record.myShare);
+  }
+
+  return {
+    entries,
+    addPartyObtain,
+    updatePartyObtain,
+    deletePartyObtain,
+    restorePartyObtain,
   };
 }

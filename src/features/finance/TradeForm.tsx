@@ -6,7 +6,6 @@ import {
   useDebts,
 } from "./useFinance";
 import { parseZeny, formatZ } from "../../lib/zeny";
-import { partyShare } from "../../lib/party";
 import { UnregisteredItemPrompt } from "./UnregisteredItemPrompt";
 import type { FinanceType } from "../../db/types";
 
@@ -119,31 +118,16 @@ export function TradeForm() {
       setMessage(`購入を記録しました（${formatZ(amount)}、在庫に追加）。`);
     } else if (kind === "obtain") {
       // obtain: free items (event drops, giveaways, etc.) — stock only, no
-      // transaction. PT挑戦の場合は入手数もPT人数で分配する（partyShareは
-      // MdDropPanelのドロップ分配と同じロジックで、割り切れない分は端数の
-      // まま在庫に反映される）。
-      const myShare = party > 1 ? partyShare(qty, party) : qty;
+      // transaction, no PT分配 (solo-only; PT-shared obtains go through the
+      // dedicated "PT入手" panel instead, which keeps a real per-event
+      // history instead of just a mutable memo).
       if (!activeItems.some((p) => p.itemName === name)) {
         await upsertItemPrice({ itemName: name, expectedPrice: 0 });
         setUnregisteredNames((prev) => [...prev, name]);
       }
-      // No money changes hands here (unlike sell's PT分配), so there's
-      // nothing to owe anyone — but since "入手" never creates a
-      // transaction, the PT context would otherwise vanish entirely the
-      // moment this saves. A memo is the only place left to keep it.
-      const partyMembers = partyMembersInput
-        .split(/[,、\s]+/)
-        .map((s) => s.trim())
-        .filter(Boolean);
-      const obtainMemo =
-        party > 1
-          ? `PT${party}人で分配${partyMembers.length > 0 ? `（${partyMembers.join("・")}）` : ""}`
-          : undefined;
-      await addStock(name, myShare, obtainMemo);
+      await addStock(name, qty);
       setMessage(
-        party > 1
-          ? `入手を記録しました（PT${party}人で分配、自分の取り分 ${myShare}個を在庫に追加、取引記録には計上されません）。`
-          : `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
+        `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
       );
     } else {
       // consume: used the item yourself (potion, enchant material, food buff,
@@ -236,7 +220,6 @@ export function TradeForm() {
             type="number"
             min="0.01"
             step="any"
-            title="PT分配で端数（例: 0.25個）になることがあります"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             required
@@ -255,7 +238,7 @@ export function TradeForm() {
           </label>
         )}
 
-        {(kind === "sell" || kind === "obtain") && (
+        {kind === "sell" && (
           <label>
             PT人数
             <input
@@ -268,29 +251,27 @@ export function TradeForm() {
           </label>
         )}
 
-        {(kind === "sell" || kind === "obtain") && Number(partySize) > 1 && (
+        {kind === "sell" && Number(partySize) > 1 && (
           <label>
-            PTメンバー（任意、スペース・カンマ区切りで複数可）
+            PTメンバー（分配相手、任意、スペース・カンマ区切りで複数可）
             <input
               placeholder="例: 相方A 相方B"
               value={partyMembersInput}
               onChange={(e) => setPartyMembersInput(e.target.value)}
             />
-            {kind === "sell" ? (
-              <span className="hint">
-                名前を入力すると、それぞれに分配額（
-                {formatZ(Math.floor(parseZeny(unitPriceInput) / Math.max(1, Number(partySize) || 1)) * Number(quantity || "0"))}
-                ）分の「貸し借り」（負債）が自動で記録されます。「貸し借り」タブで
-                支払い済みを記録できます。
-              </span>
-            ) : (
-              <span className="hint">
-                入手はお金のやり取りがないため貸し借りは作られませんが、名前を
-                入力すると在庫のメモに「PT{Number(partySize) || 1}人で分配（メンバー名）」
-                として残るので、後からこの分がPT分配だったと分かるようになります。
-              </span>
-            )}
+            <span className="hint">
+              名前を入力すると、それぞれに分配額（
+              {formatZ(Math.floor(parseZeny(unitPriceInput) / Math.max(1, Number(partySize) || 1)) * Number(quantity || "0"))}
+              ）分の「貸し借り」（負債）が自動で記録されます。「貸し借り」タブで
+              支払い済みを記録できます。
+            </span>
           </label>
+        )}
+        {kind === "obtain" && (
+          <p className="hint">
+            PTで山分けした分は「入手」ではなく下の「PT入手」欄を使ってください。
+            自分の取り分の計算・履歴管理はそちらでまとめて行えます。
+          </p>
         )}
 
         {kind === "sell" && (

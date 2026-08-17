@@ -134,9 +134,28 @@ export interface InventoryItem {
   id: string;
   itemName: string;
   quantity: number;
-  /** Free-text note — e.g. who a PT-split obtain was shared with, since "入手" never creates a transaction to hang that context on otherwise. */
+  /** Free-text note for the stock row — general-purpose (not PT-specific; see PartyObtainEntry for that). */
   memo?: string;
   updatedAt: number;
+}
+
+/**
+ * A PT-shared obtain (event MD drops split among a party, etc.), recorded
+ * as its own history entry — unlike a plain 入手 (stock-only, no record at
+ * all), this is what lets a mixed-origin stack later be broken back down
+ * into "how much came from which PT run, split with whom." Adds
+ * `myShare` (= partyShare(totalQuantity, partySize)) to inventory on save.
+ */
+export interface PartyObtainEntry {
+  id: string;
+  itemName: string;
+  totalQuantity: number;
+  partySize: number;
+  members: string[];
+  myShare: number;
+  date: number;
+  memo?: string;
+  createdAt: number;
 }
 
 export interface WishlistItem {
