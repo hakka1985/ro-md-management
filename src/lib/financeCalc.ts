@@ -127,7 +127,8 @@ export function getMdEfficiency(
 
   return [...byDungeon.entries()]
     .map(([dungeonId, entry]) => {
-      const avgValue = entry.runCount > 0 ? entry.totalValue / entry.runCount : 0;
+      const avgValue =
+        entry.runCount > 0 ? entry.totalValue / entry.runCount : 0;
       let coefficientOfVariation: number | null = null;
       if (entry.runCount >= 2 && avgValue > 0) {
         const variance =
@@ -158,24 +159,53 @@ export function getMdEfficiency(
     .sort((a, b) => b.totalValue - a.totalValue);
 }
 
-export interface MdWeeklyTrend {
-  dungeonId: string;
-  thisWeekValue: number;
-  lastWeekValue: number;
-  /** Percent change vs last week (e.g. 20 = +20%) — null when lastWeekValue is 0 (nothing to compare against). */
-  pctChange: number | null;
+export type TrendGranularity = "week" | "month";
+
+/** Boundary of "this period" (RO-week Tuesday-noon reset, or calendar month) and the period immediately before it. */
+function trendPeriodBounds(
+  granularity: TrendGranularity,
+  now: number,
+): { thisStart: number; lastStart: number } {
+  if (granularity === "week") {
+    const thisStart = startOfWeek(new Date(now)).getTime();
+    return { thisStart, lastStart: thisStart - 7 * 24 * 60 * 60 * 1000 };
+  }
+  const thisStart = new Date(now);
+  thisStart.setDate(1);
+  thisStart.setHours(0, 0, 0, 0);
+  const lastStart = new Date(thisStart);
+  lastStart.setMonth(lastStart.getMonth() - 1);
+  return { thisStart: thisStart.getTime(), lastStart: lastStart.getTime() };
 }
 
-/** Per-dungeon week-over-week drop value trend — lets a specific MD's payout drop or spike get noticed even while the overall weekly total looks normal. */
-export function getMdWeeklyTrend(
+function pctChangeOf(current: number, previous: number): number | null {
+  return previous > 0 ? ((current - previous) / previous) * 100 : null;
+}
+
+export interface MdPeriodTrend {
+  dungeonId: string;
+  thisPeriodValue: number;
+  lastPeriodValue: number;
+  thisPeriodRuns: number;
+  lastPeriodRuns: number;
+  /** Percent change vs the previous period (e.g. 20 = +20%) — null when the previous period was 0 (nothing to compare against). */
+  valuePctChange: number | null;
+  runsPctChange: number | null;
+}
+
+/** Per-dungeon period-over-period drop value and run-count trend — lets a specific MD's payout or pace shift get noticed even while the overall total looks normal. */
+export function getMdPeriodTrend(
   runs: MdRun[],
   prices: ItemPrice[],
+  granularity: TrendGranularity,
   now: number = Date.now(),
-): MdWeeklyTrend[] {
+): MdPeriodTrend[] {
   const priceByName = new Map(prices.map((p) => [p.itemName, p.expectedPrice]));
-  const thisWeekStart = startOfWeek(new Date(now)).getTime();
-  const lastWeekStart = thisWeekStart - 7 * 24 * 60 * 60 * 1000;
-  const byDungeon = new Map<string, { thisWeek: number; lastWeek: number }>();
+  const { thisStart, lastStart } = trendPeriodBounds(granularity, now);
+  const byDungeon = new Map<
+    string,
+    { thisValue: number; lastValue: number; thisRuns: number; lastRuns: number }
+  >();
 
   function runValue(run: MdRun): number {
     if (!run.items) return 0;
@@ -186,20 +216,67 @@ export function getMdWeeklyTrend(
   }
 
   for (const run of runs) {
-    if (run.completedAt < lastWeekStart) continue;
-    const entry = byDungeon.get(run.dungeonId) ?? { thisWeek: 0, lastWeek: 0 };
+    if (run.completedAt < lastStart) continue;
+    const entry = byDungeon.get(run.dungeonId) ?? {
+      thisValue: 0,
+      lastValue: 0,
+      thisRuns: 0,
+      lastRuns: 0,
+    };
     const value = runValue(run);
-    if (run.completedAt >= thisWeekStart) entry.thisWeek += value;
-    else entry.lastWeek += value;
+    if (run.completedAt >= thisStart) {
+      entry.thisValue += value;
+      entry.thisRuns += 1;
+    } else {
+      entry.lastValue += value;
+      entry.lastRuns += 1;
+    }
     byDungeon.set(run.dungeonId, entry);
   }
 
   return [...byDungeon.entries()].map(([dungeonId, e]) => ({
     dungeonId,
-    thisWeekValue: e.thisWeek,
-    lastWeekValue: e.lastWeek,
-    pctChange:
-      e.lastWeek > 0 ? ((e.thisWeek - e.lastWeek) / e.lastWeek) * 100 : null,
+    thisPeriodValue: e.thisValue,
+    lastPeriodValue: e.lastValue,
+    thisPeriodRuns: e.thisRuns,
+    lastPeriodRuns: e.lastRuns,
+    valuePctChange: pctChangeOf(e.thisValue, e.lastValue),
+    runsPctChange: pctChangeOf(e.thisRuns, e.lastRuns),
+  }));
+}
+
+export interface ItemPeriodTrend {
+  itemName: string;
+  thisPeriodQty: number;
+  lastPeriodQty: number;
+  pctChange: number | null;
+}
+
+/** Per-item period-over-period acquisition-count trend, aggregated across all MD runs' recorded drops (each run's items are already the player's own share, not the party total). */
+export function getItemPeriodTrend(
+  runs: MdRun[],
+  granularity: TrendGranularity,
+  now: number = Date.now(),
+): ItemPeriodTrend[] {
+  const { thisStart, lastStart } = trendPeriodBounds(granularity, now);
+  const byItem = new Map<string, { thisQty: number; lastQty: number }>();
+
+  for (const run of runs) {
+    if (run.completedAt < lastStart || !run.items) continue;
+    const isThisPeriod = run.completedAt >= thisStart;
+    for (const [name, qty] of Object.entries(run.items)) {
+      const entry = byItem.get(name) ?? { thisQty: 0, lastQty: 0 };
+      if (isThisPeriod) entry.thisQty += qty;
+      else entry.lastQty += qty;
+      byItem.set(name, entry);
+    }
+  }
+
+  return [...byItem.entries()].map(([itemName, e]) => ({
+    itemName,
+    thisPeriodQty: e.thisQty,
+    lastPeriodQty: e.lastQty,
+    pctChange: pctChangeOf(e.thisQty, e.lastQty),
   }));
 }
 
@@ -321,7 +398,10 @@ export function getRecentMonthlyNet(
     end.setMonth(end.getMonth() + 1);
     const net = transactions
       .filter((t) => t.date >= start.getTime() && t.date < end.getTime())
-      .reduce((sum, t) => sum + (t.type === "income" ? t.amount : -t.amount), 0);
+      .reduce(
+        (sum, t) => sum + (t.type === "income" ? t.amount : -t.amount),
+        0,
+      );
     points.push({
       label: `${start.getFullYear()}/${start.getMonth() + 1}月`,
       value: net,
@@ -353,7 +433,10 @@ export function getRecentMonthlyMdValue(
     const end = new Date(start);
     end.setMonth(end.getMonth() + 1);
     const value = runs
-      .filter((r) => r.completedAt >= start.getTime() && r.completedAt < end.getTime())
+      .filter(
+        (r) =>
+          r.completedAt >= start.getTime() && r.completedAt < end.getTime(),
+      )
       .reduce((sum, r) => {
         if (!r.items) return sum;
         return (
@@ -434,7 +517,8 @@ export function getWeeklyNetSummary(
   let bestPastWeekNet: number | null = null;
   for (const [weekStart, net] of buckets) {
     if (weekStart >= currentWeekStart) continue;
-    if (bestPastWeekNet === null || net > bestPastWeekNet) bestPastWeekNet = net;
+    if (bestPastWeekNet === null || net > bestPastWeekNet)
+      bestPastWeekNet = net;
   }
 
   const currentWeekNet = buckets.get(currentWeekStart) ?? 0;
@@ -463,7 +547,9 @@ export function getWeeklyTopSale(
     (t) => t.type === "income" && t.date >= weekStart && t.date < weekEnd,
   );
   if (candidates.length === 0) return null;
-  const top = candidates.reduce((best, t) => (t.amount > best.amount ? t : best));
+  const top = candidates.reduce((best, t) =>
+    t.amount > best.amount ? t : best,
+  );
   return { itemName: top.itemName, amount: top.amount, date: top.date };
 }
 
@@ -485,7 +571,10 @@ export function getMonthlyNetSummary(
   const netOf = (from: number, to: number) =>
     transactions
       .filter((t) => t.date >= from && t.date < to)
-      .reduce((sum, t) => sum + (t.type === "income" ? t.amount : -t.amount), 0);
+      .reduce(
+        (sum, t) => sum + (t.type === "income" ? t.amount : -t.amount),
+        0,
+      );
   return {
     thisMonthNet: netOf(thisMonthStart.getTime(), now),
     lastMonthNet: netOf(lastMonthStart.getTime(), thisMonthStart.getTime()),

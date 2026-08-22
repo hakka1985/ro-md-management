@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useMdDungeons, useMdRuns } from "../md/useMd";
-import { getAvailableMdTasksGrouped, getUpcomingMdTasks, formatRemaining } from "../md/ctCalc";
+import {
+  getAvailableMdTasksGrouped,
+  getUpcomingMdTasks,
+  formatRemaining,
+} from "../md/ctCalc";
 import { useMvpKills } from "../mvp/useMvp";
 import {
   useTransactions,
@@ -14,7 +18,8 @@ import { useAppSettings } from "../settings/useAppSettings";
 import {
   getInventoryValue,
   getMdEfficiency,
-  getMdWeeklyTrend,
+  getMdPeriodTrend,
+  getItemPeriodTrend,
   getWeeklySellRevenue,
   getAssetTrend,
   getTotalCharacterCash,
@@ -29,6 +34,7 @@ import {
   getWeeklyTopSale,
   getMonthlyNetSummary,
   type AssetGranularity,
+  type TrendGranularity,
 } from "../../lib/financeCalc";
 import { formatDate } from "../../lib/date";
 import { BarChart } from "../../components/charts/BarChart";
@@ -50,6 +56,11 @@ type MonthlyView = "all" | "md";
 const MONTHLY_VIEWS: { key: MonthlyView; label: string }[] = [
   { key: "all", label: "全体" },
   { key: "md", label: "MD" },
+];
+
+const TREND_VIEWS: { key: TrendGranularity; label: string }[] = [
+  { key: "week", label: "前週比" },
+  { key: "month", label: "前月比" },
 ];
 
 interface Props {
@@ -75,6 +86,10 @@ export function DashboardPage({ onRecordCharacter }: Props) {
     null,
   );
   const [efficiencySortDir, setEfficiencySortDir] = useState<SortDir>("asc");
+  const [trendView, setTrendView] = useState<TrendGranularity>("week");
+  const [itemTrendSearch, setItemTrendSearch] = useState("");
+  const [itemTrendSortKey, setItemTrendSortKey] = useState<string | null>(null);
+  const [itemTrendSortDir, setItemTrendSortDir] = useState<SortDir>("asc");
 
   if (
     !dungeons ||
@@ -132,13 +147,13 @@ export function DashboardPage({ onRecordCharacter }: Props) {
       setEfficiencySortDir("asc");
     }
   }
-  const weeklyTrendByDungeon = new Map(
-    getMdWeeklyTrend(runs, itemPrices).map((t) => [t.dungeonId, t]),
+  const periodTrendByDungeon = new Map(
+    getMdPeriodTrend(runs, itemPrices, trendView).map((t) => [t.dungeonId, t]),
   );
   const efficiencyRowsAll = efficiency.map((e) => ({
     ...e,
     dungeonName: dungeonNameById.get(e.dungeonId) ?? "（不明なMD）",
-    trend: weeklyTrendByDungeon.get(e.dungeonId) ?? null,
+    trend: periodTrendByDungeon.get(e.dungeonId) ?? null,
   }));
   const efficiencyRowsFiltered = efficiencyRowsAll.filter((e) =>
     e.dungeonName.toLowerCase().includes(efficiencySearch.trim().toLowerCase()),
@@ -169,6 +184,46 @@ export function DashboardPage({ onRecordCharacter }: Props) {
     },
   );
 
+  function toggleItemTrendSort(key: string) {
+    if (itemTrendSortKey === key) {
+      setItemTrendSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setItemTrendSortKey(key);
+      setItemTrendSortDir("asc");
+    }
+  }
+  const itemTrendRowsAll = getItemPeriodTrend(runs, trendView).filter(
+    (r) => r.thisPeriodQty > 0 || r.lastPeriodQty > 0,
+  );
+  const itemTrendRowsFiltered = itemTrendRowsAll.filter((r) =>
+    r.itemName.toLowerCase().includes(itemTrendSearch.trim().toLowerCase()),
+  );
+  // Default view (no column clicked yet) surfaces this period's biggest
+  // hauls first — biggest movers are more useful to see up front than an
+  // alphabetical list would be.
+  const itemTrendRowsDefaultOrdered = [...itemTrendRowsFiltered].sort(
+    (a, b) => b.thisPeriodQty - a.thisPeriodQty,
+  );
+  const itemTrendRows = sortItems(
+    itemTrendRowsDefaultOrdered,
+    itemTrendSortKey,
+    itemTrendSortDir,
+    (r, key) => {
+      switch (key) {
+        case "itemName":
+          return r.itemName;
+        case "thisPeriodQty":
+          return r.thisPeriodQty;
+        case "lastPeriodQty":
+          return r.lastPeriodQty;
+        case "pctChange":
+          return r.pctChange ?? -Infinity;
+        default:
+          return "";
+      }
+    },
+  );
+
   const weeklyNet = getWeeklyNetSummary(trendTransactions);
   const weeklyMdEstimate = getWeeklyMdEstimatedValue(trendRuns, itemPrices);
   const weeklyEstimatedTotal = weeklyNet.currentWeekNet + weeklyMdEstimate;
@@ -176,7 +231,8 @@ export function DashboardPage({ onRecordCharacter }: Props) {
     weeklyGoal > 0
       ? Math.min(100, (weeklyEstimatedTotal / weeklyGoal) * 100)
       : 0;
-  const weekOverWeekDelta = weeklyNet.currentWeekNet - weeklyNet.previousWeekNet;
+  const weekOverWeekDelta =
+    weeklyNet.currentWeekNet - weeklyNet.previousWeekNet;
   const weekOverWeekPct =
     weeklyNet.previousWeekNet !== 0
       ? (weekOverWeekDelta / Math.abs(weeklyNet.previousWeekNet)) * 100
@@ -248,9 +304,9 @@ export function DashboardPage({ onRecordCharacter }: Props) {
       unlocked: runs.length >= m,
     })),
   ];
-  const bestMdThisWeek = [...weeklyTrendByDungeon.values()]
-    .filter((t) => t.thisWeekValue > 0)
-    .sort((a, b) => b.thisWeekValue - a.thisWeekValue)[0];
+  const bestMdThisWeek = getMdPeriodTrend(runs, itemPrices, "week")
+    .filter((t) => t.thisPeriodValue > 0)
+    .sort((a, b) => b.thisPeriodValue - a.thisPeriodValue)[0];
 
   const allocationParts = [
     { label: "所持金（現金）", value: characterCash, color: "var(--accent)" },
@@ -309,7 +365,8 @@ export function DashboardPage({ onRecordCharacter }: Props) {
           {baselineDate && (
             <p className="hint" title={`${baselineAmount.toLocaleString()} z`}>
               {new Date(baselineDate).toLocaleDateString()}
-              の基準値（{formatZ(baselineAmount)}）を起点に計算しています。設定タブで変更・解除できます。
+              の基準値（{formatZ(baselineAmount)}
+              ）を起点に計算しています。設定タブで変更・解除できます。
             </p>
           )}
           <h3 style={{ marginTop: "1rem" }}>資産配分</h3>
@@ -320,8 +377,11 @@ export function DashboardPage({ onRecordCharacter }: Props) {
           <h2>今週の成績</h2>
           {weeklyGoal > 0 ? (
             <>
-              <p title={`${weeklyEstimatedTotal.toLocaleString()} z / ${weeklyGoal.toLocaleString()} z`}>
-                今週の実績＋推定: <strong>{formatZ(weeklyEstimatedTotal)}</strong>
+              <p
+                title={`${weeklyEstimatedTotal.toLocaleString()} z / ${weeklyGoal.toLocaleString()} z`}
+              >
+                今週の実績＋推定:{" "}
+                <strong>{formatZ(weeklyEstimatedTotal)}</strong>
                 {" / "}目標 {formatZ(weeklyGoal)}
               </p>
               {weeklyMdEstimate > 0 && (
@@ -329,8 +389,8 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                   className="hint"
                   title={`実績 ${weeklyNet.currentWeekNet.toLocaleString()} z + MD未売却分 推定 ${weeklyMdEstimate.toLocaleString()} z`}
                 >
-                  内訳: 実績 {formatZ(weeklyNet.currentWeekNet)} + MD未売却分 推定{" "}
-                  {formatZ(weeklyMdEstimate)}
+                  内訳: 実績 {formatZ(weeklyNet.currentWeekNet)} + MD未売却分
+                  推定 {formatZ(weeklyMdEstimate)}
                 </p>
               )}
               <div className="progress-bar-track">
@@ -358,7 +418,9 @@ export function DashboardPage({ onRecordCharacter }: Props) {
             先週比:{" "}
             {weekOverWeekPct !== null ? (
               <strong
-                className={weekOverWeekDelta >= 0 ? "wow-positive" : "wow-negative"}
+                className={
+                  weekOverWeekDelta >= 0 ? "wow-positive" : "wow-negative"
+                }
                 title={`${weekOverWeekDelta.toLocaleString()} z`}
               >
                 {weekOverWeekDelta >= 0 ? "▲" : "▼"}
@@ -377,7 +439,10 @@ export function DashboardPage({ onRecordCharacter }: Props) {
           )}
           {goalStreak > 0 && (
             <p>
-              <span className="best-badge" title="週次目標を連続で達成している週数です">
+              <span
+                className="best-badge"
+                title="週次目標を連続で達成している週数です"
+              >
                 🔥{goalStreak}週連続で目標達成中！
               </span>
             </p>
@@ -461,10 +526,7 @@ export function DashboardPage({ onRecordCharacter }: Props) {
       <div className="three-col">
         <section className="panel">
           <h2>週次売上推移</h2>
-          <VerticalBarChart
-            data={weeklySell}
-            formatValue={formatZ}
-          />
+          <VerticalBarChart data={weeklySell} formatValue={formatZ} />
         </section>
 
         <section className="panel">
@@ -499,19 +561,13 @@ export function DashboardPage({ onRecordCharacter }: Props) {
             ))}
           </div>
           {monthlyView === "all" ? (
-            <DivergingBarChart
-              data={monthlyNet}
-              formatValue={formatZ}
-            />
+            <DivergingBarChart data={monthlyNet} formatValue={formatZ} />
           ) : (
             <>
               <p className="hint">
                 MD周回で獲得したアイテムの想定価値（実際に売れたとは限りません）
               </p>
-              <VerticalBarChart
-                data={monthlyMdValue}
-                formatValue={formatZ}
-              />
+              <VerticalBarChart data={monthlyMdValue} formatValue={formatZ} />
             </>
           )}
         </section>
@@ -528,16 +584,25 @@ export function DashboardPage({ onRecordCharacter }: Props) {
             <p className="hint">
               時給（z/時）はクリア時間を記録した周回のみから計算されます。MDドロップ入力や手動入力の「クリア時間」欄に入力すると反映されます。
             </p>
-            <BarChart
-              data={efficiencyBars}
-              formatValue={formatZ}
-            />
+            <BarChart data={efficiencyBars} formatValue={formatZ} />
             <input
               placeholder="MD名で検索"
               value={efficiencySearch}
               onChange={(e) => setEfficiencySearch(e.target.value)}
               style={{ width: "100%", margin: "1rem 0 0.5rem" }}
             />
+            <div className="tab-nav" style={{ marginBottom: "0.5rem" }}>
+              {TREND_VIEWS.map((v) => (
+                <button
+                  key={v.key}
+                  type="button"
+                  className={v.key === trendView ? "tab-active" : ""}
+                  onClick={() => setTrendView(v.key)}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
             <div className="scrollable-table">
               <table className="md-master-table">
                 <thead>
@@ -591,7 +656,14 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                       dir={efficiencySortDir}
                       onSort={toggleEfficiencySort}
                     />
-                    <th>先週比</th>
+                    <th>
+                      周回数
+                      {trendView === "week" ? "前週比" : "前月比"}
+                    </th>
+                    <th>
+                      価値
+                      {trendView === "week" ? "前週比" : "前月比"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -602,7 +674,9 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                       <td title={`${e.totalValue.toLocaleString()} z`}>
                         {formatZ(e.totalValue)}
                       </td>
-                      <td title={`${Math.round(e.avgValue).toLocaleString()} z`}>
+                      <td
+                        title={`${Math.round(e.avgValue).toLocaleString()} z`}
+                      >
                         {formatZ(Math.round(e.avgValue))}
                       </td>
                       <td
@@ -644,21 +718,45 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                       </td>
                       <td
                         title={
-                          e.trend && e.trend.pctChange !== null
-                            ? `今週 ${e.trend.thisWeekValue.toLocaleString()} z / 先週 ${e.trend.lastWeekValue.toLocaleString()} z`
+                          e.trend
+                            ? `今期 ${e.trend.thisPeriodRuns}回 / 前期 ${e.trend.lastPeriodRuns}回`
                             : undefined
                         }
                       >
-                        {!e.trend || e.trend.pctChange === null ? (
+                        {!e.trend || e.trend.runsPctChange === null ? (
                           "—"
                         ) : (
                           <span
                             className={
-                              e.trend.pctChange >= 0 ? "trend-up" : "trend-down"
+                              e.trend.runsPctChange >= 0
+                                ? "trend-up"
+                                : "trend-down"
                             }
                           >
-                            {e.trend.pctChange >= 0 ? "▲" : "▼"}
-                            {Math.abs(e.trend.pctChange).toFixed(0)}%
+                            {e.trend.runsPctChange >= 0 ? "▲" : "▼"}
+                            {Math.abs(e.trend.runsPctChange).toFixed(0)}%
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        title={
+                          e.trend
+                            ? `今期 ${e.trend.thisPeriodValue.toLocaleString()} z / 前期 ${e.trend.lastPeriodValue.toLocaleString()} z`
+                            : undefined
+                        }
+                      >
+                        {!e.trend || e.trend.valuePctChange === null ? (
+                          "—"
+                        ) : (
+                          <span
+                            className={
+                              e.trend.valuePctChange >= 0
+                                ? "trend-up"
+                                : "trend-down"
+                            }
+                          >
+                            {e.trend.valuePctChange >= 0 ? "▲" : "▼"}
+                            {Math.abs(e.trend.valuePctChange).toFixed(0)}%
                           </span>
                         )}
                       </td>
@@ -666,8 +764,104 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                   ))}
                   {efficiencyRows.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="empty">
+                      <td colSpan={9} className="empty">
                         一致するMDがありません
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>アイテム別獲得数の{trendView === "week" ? "前週比" : "前月比"}</h2>
+        {itemTrendRowsAll.length === 0 ? (
+          <p className="empty">
+            MD進捗タブで周回を記録すると、ここにアイテム別の獲得数比較が表示されます。
+          </p>
+        ) : (
+          <>
+            <input
+              placeholder="アイテム名で検索"
+              value={itemTrendSearch}
+              onChange={(e) => setItemTrendSearch(e.target.value)}
+              style={{ width: "100%", margin: "0.5rem 0" }}
+            />
+            <div className="tab-nav" style={{ marginBottom: "0.5rem" }}>
+              {TREND_VIEWS.map((v) => (
+                <button
+                  key={v.key}
+                  type="button"
+                  className={v.key === trendView ? "tab-active" : ""}
+                  onClick={() => setTrendView(v.key)}
+                >
+                  {v.label}
+                </button>
+              ))}
+            </div>
+            <div className="scrollable-table">
+              <table className="md-master-table">
+                <thead>
+                  <tr>
+                    <SortableHeader
+                      label="アイテム名"
+                      sortKey="itemName"
+                      activeKey={itemTrendSortKey}
+                      dir={itemTrendSortDir}
+                      onSort={toggleItemTrendSort}
+                    />
+                    <SortableHeader
+                      label={trendView === "week" ? "今週" : "今月"}
+                      sortKey="thisPeriodQty"
+                      activeKey={itemTrendSortKey}
+                      dir={itemTrendSortDir}
+                      onSort={toggleItemTrendSort}
+                    />
+                    <SortableHeader
+                      label={trendView === "week" ? "先週" : "先月"}
+                      sortKey="lastPeriodQty"
+                      activeKey={itemTrendSortKey}
+                      dir={itemTrendSortDir}
+                      onSort={toggleItemTrendSort}
+                    />
+                    <SortableHeader
+                      label="増減"
+                      sortKey="pctChange"
+                      activeKey={itemTrendSortKey}
+                      dir={itemTrendSortDir}
+                      onSort={toggleItemTrendSort}
+                    />
+                  </tr>
+                </thead>
+                <tbody>
+                  {itemTrendRows.map((r) => (
+                    <tr key={r.itemName}>
+                      <td style={{ textAlign: "left" }}>{r.itemName}</td>
+                      <td>{r.thisPeriodQty}</td>
+                      <td>{r.lastPeriodQty}</td>
+                      <td>
+                        {r.pctChange === null ? (
+                          "—"
+                        ) : (
+                          <span
+                            className={
+                              r.pctChange >= 0 ? "trend-up" : "trend-down"
+                            }
+                          >
+                            {r.pctChange >= 0 ? "▲" : "▼"}
+                            {Math.abs(r.pctChange).toFixed(0)}%
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                  {itemTrendRows.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="empty">
+                        一致するアイテムがありません
                       </td>
                     </tr>
                   )}
@@ -688,7 +882,7 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                 <strong>
                   {dungeonNameById.get(bestMdThisWeek.dungeonId) ??
                     "（不明なMD）"}
-                  （{formatZ(bestMdThisWeek.thisWeekValue)}）
+                  （{formatZ(bestMdThisWeek.thisPeriodValue)}）
                 </strong>
               ) : (
                 "まだ記録がありません"
@@ -708,9 +902,7 @@ export function DashboardPage({ onRecordCharacter }: Props) {
               今月の純利益: {formatZ(monthlyNetSummary.thisMonthNet)}
               {monthOverMonthPct !== null && (
                 <span
-                  className={
-                    monthOverMonthPct >= 0 ? "trend-up" : "trend-down"
-                  }
+                  className={monthOverMonthPct >= 0 ? "trend-up" : "trend-down"}
                 >
                   {" "}
                   （先月比 {monthOverMonthPct >= 0 ? "▲" : "▼"}
