@@ -127,9 +127,14 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
         />
         <datalist id="mvp-options">
           {activeMvps.map((m) => (
-            <option key={m.id} value={m.name} />
+            <option key={m.id} value={m.name}>
+              {m.map}
+            </option>
           ))}
         </datalist>
+        <span className="hint">
+          出現マップの一部を入力しても候補が絞り込めます
+        </span>
       </label>
 
       <label>
