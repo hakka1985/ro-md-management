@@ -18,6 +18,7 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
   const { logKill, updateKill } = useMvpKills();
 
   const [mvpName, setMvpName] = useState("");
+  const [mapFilter, setMapFilter] = useState("");
   const [characterName, setCharacterName] = useState(
     () => localStorage.getItem(LAST_CHARACTER_KEY) || "",
   );
@@ -34,6 +35,13 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
   const activeCharacters = characters?.filter((c) => !c.archived) ?? [];
   const selectedMvp = activeMvps.find((m) => m.name === mvpName);
   const dropItemNames = selectedMvp?.dropItems ?? [];
+
+  const mapFilterTrim = mapFilter.trim().toLowerCase();
+  const mvpOptions = mapFilterTrim
+    ? activeMvps.filter((m) =>
+        (m.map ?? "").toLowerCase().includes(mapFilterTrim),
+      )
+    : activeMvps;
 
   useEffect(() => {
     if (!editingKill) return;
@@ -117,6 +125,15 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
       {error && <p className="form-error">{error}</p>}
 
       <label>
+        出現マップで絞り込み（任意）
+        <input
+          placeholder="マップ名の一部を入力するとMVP候補を絞り込めます"
+          value={mapFilter}
+          onChange={(e) => setMapFilter(e.target.value)}
+        />
+      </label>
+
+      <label>
         MVP
         <input
           list="mvp-options"
@@ -126,15 +143,17 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
           required
         />
         <datalist id="mvp-options">
-          {activeMvps.map((m) => (
+          {mvpOptions.map((m) => (
             <option key={m.id} value={m.name}>
               {m.map}
             </option>
           ))}
         </datalist>
-        <span className="hint">
-          出現マップの一部を入力しても候補が絞り込めます
-        </span>
+        {mapFilterTrim && mvpOptions.length === 0 && (
+          <span className="hint">
+            「{mapFilter}」を含む出現マップのMVPが見つかりません
+          </span>
+        )}
       </label>
 
       <label>
