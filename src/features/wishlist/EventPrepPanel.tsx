@@ -56,6 +56,22 @@ export function EventPrepPanel() {
       ? Math.round((achievedTotalQty / obtainedTotalQty) * 100)
       : 0;
 
+  // sellPriceが未入力のアイテムは利益計算に含めない（0円扱いにすると過小評価に
+  // なるため、そもそも合計から除外する）。
+  const itemsWithSellPrice = activeItems.filter(
+    (i) => i.sellPrice !== undefined,
+  );
+  const hasSellPrice = itemsWithSellPrice.length > 0;
+  const potentialProfit = itemsWithSellPrice.reduce(
+    (s, i) => s + ((i.sellPrice as number) - i.unitCost) * i.quantity,
+    0,
+  );
+  const achievedProfit = itemsWithSellPrice.reduce(
+    (s, i) =>
+      s + ((i.sellPrice as number) - i.unitCost) * (i.achievedQuantity ?? 0),
+    0,
+  );
+
   return (
     <section className="panel">
       <h2>🔥 イベント仕入れ計画</h2>
@@ -109,6 +125,30 @@ export function EventPrepPanel() {
             {obtainedTotalQty > 0 && `（仕入れ済みの${achievedPct}%）`}
           </div>
         </div>
+        {hasSellPrice && (
+          <>
+            <div className="summary-tile">
+              <div className="label">想定利益（目標達成時）</div>
+              <div
+                className={`value ${potentialProfit >= 0 ? "good" : "danger"}`}
+                title={`${potentialProfit.toLocaleString()} z`}
+              >
+                {potentialProfit >= 0 ? "+" : ""}
+                {formatZ(potentialProfit)}
+              </div>
+            </div>
+            <div className="summary-tile">
+              <div className="label">精錬達成分の利益見込み</div>
+              <div
+                className={`value ${achievedProfit >= 0 ? "good" : "danger"}`}
+                title={`${achievedProfit.toLocaleString()} z`}
+              >
+                {achievedProfit >= 0 ? "+" : ""}
+                {formatZ(achievedProfit)}
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="scrollable-table">
@@ -117,6 +157,7 @@ export function EventPrepPanel() {
             <tr>
               <th>装備名</th>
               <th>仕入れ値上限</th>
+              <th>想定売値 / 利益</th>
               <th>仕入れ進捗</th>
               <th>精錬達成</th>
               <th>操作</th>
@@ -152,6 +193,24 @@ export function EventPrepPanel() {
                   </td>
                   <td title={`${item.unitCost.toLocaleString()} z`}>
                     {formatZ(item.unitCost)}
+                  </td>
+                  <td>
+                    {item.sellPrice === undefined ? (
+                      "—"
+                    ) : (
+                      <>
+                        <span title={`${item.sellPrice.toLocaleString()} z`}>
+                          {formatZ(item.sellPrice)}
+                        </span>
+                        <span
+                          className="hint"
+                          style={{ margin: 0, display: "block" }}
+                        >
+                          {item.sellPrice - item.unitCost >= 0 ? "+" : ""}
+                          {formatZ(item.sellPrice - item.unitCost)}/個
+                        </span>
+                      </>
+                    )}
                   </td>
                   <td style={{ minWidth: "9rem" }}>
                     <div className="progress-bar-track">

@@ -604,6 +604,10 @@ button:active {
   color: var(--good);
 }
 
+.summary-tile .value.danger {
+  color: var(--danger);
+}
+
 .refine-badge {
   display: inline-block;
   margin-left: 0.4rem;

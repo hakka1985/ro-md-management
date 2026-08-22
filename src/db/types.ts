@@ -192,6 +192,8 @@ export interface WishlistItem {
   achievedQuantity?: number;
   /** Target refine level for this event item (e.g. "+7") — display-only label, not validated against game data. */
   refineTarget?: string;
+  /** Expected selling price per refined unit — only meaningful alongside eventTag; unitCost - sellPrice gives the per-unit margin used for the event panel's profit summary. */
+  sellPrice?: number;
   createdAt: number;
 }
 

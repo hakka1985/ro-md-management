@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useWishlist } from "./useWishlist";
-import { parseZeny } from "../../lib/zeny";
+import { parseZeny, formatZ } from "../../lib/zeny";
 
 export function WishlistForm() {
   const { addItem } = useWishlist();
@@ -10,6 +10,7 @@ export function WishlistForm() {
   const [memo, setMemo] = useState("");
   const [eventTag, setEventTag] = useState("");
   const [refineTarget, setRefineTarget] = useState("");
+  const [sellPrice, setSellPrice] = useState("");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -23,13 +24,16 @@ export function WishlistForm() {
       memo: memo.trim(),
       eventTag: eventTag.trim() || undefined,
       refineTarget: refineTarget.trim() || undefined,
+      sellPrice: sellPrice.trim() ? parseZeny(sellPrice) : undefined,
     });
     setItemName("");
     setQuantity("1");
     setUnitCost("");
     setMemo("");
-    // イベント名・目標精錬値はあえてクリアしない — 同じイベント向けに何十件も
-    // 続けて登録するのが実際の使い方なので、毎回打ち直さずに済むようにする。
+    setSellPrice("");
+    // イベント名・目標精錬値はあえてクリアしない（同じイベント向けに何十件も
+    // 続けて登録するのが実際の使い方で、精錬目標も揃っていることが多いため）。
+    // ただし仕入れ値上限と同様、想定売値はアイテムごとに違うのでクリアする。
   }
 
   return (
@@ -86,14 +90,30 @@ export function WishlistForm() {
       </label>
 
       {eventTag.trim() && (
-        <label>
-          目標精錬値（任意）
-          <input
-            placeholder="例: +7"
-            value={refineTarget}
-            onChange={(e) => setRefineTarget(e.target.value)}
-          />
-        </label>
+        <>
+          <label>
+            目標精錬値（任意）
+            <input
+              placeholder="例: +7"
+              value={refineTarget}
+              onChange={(e) => setRefineTarget(e.target.value)}
+            />
+          </label>
+          <label>
+            精錬後の想定売値（任意）
+            <input
+              placeholder="例: 500k, 1.5M, 1G"
+              value={sellPrice}
+              onChange={(e) => setSellPrice(e.target.value)}
+            />
+            {sellPrice.trim() && unitCost.trim() && (
+              <span className="hint">
+                想定利益（1個あたり）:{" "}
+                {formatZ(parseZeny(sellPrice) - parseZeny(unitCost))}
+              </span>
+            )}
+          </label>
+        </>
       )}
 
       <div className="form-actions">

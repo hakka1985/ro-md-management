@@ -20,6 +20,7 @@ export function useWishlist() {
     memo?: string;
     eventTag?: string;
     refineTarget?: string;
+    sellPrice?: number;
   }) {
     const maxPriority = (items ?? []).reduce(
       (max, i) => Math.max(max, i.priority ?? 0),
@@ -35,6 +36,7 @@ export function useWishlist() {
       priority: maxPriority + 1,
       eventTag: input.eventTag || undefined,
       refineTarget: input.refineTarget || undefined,
+      sellPrice: input.eventTag ? input.sellPrice : undefined,
       obtainedQuantity: input.eventTag ? 0 : undefined,
       achievedQuantity: input.eventTag ? 0 : undefined,
       createdAt: Date.now(),

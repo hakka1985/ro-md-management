@@ -62,6 +62,9 @@ export function WishlistEditForm({
   const [memo, setMemo] = useState(item.memo ?? "");
   const [eventTag, setEventTag] = useState(item.eventTag ?? "");
   const [refineTarget, setRefineTarget] = useState(item.refineTarget ?? "");
+  const [sellPrice, setSellPrice] = useState(
+    item.sellPrice !== undefined ? String(item.sellPrice) : "",
+  );
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -76,6 +79,8 @@ export function WishlistEditForm({
       memo: memo.trim() || undefined,
       eventTag: nextEventTag,
       refineTarget: refineTarget.trim() || undefined,
+      sellPrice:
+        nextEventTag && sellPrice.trim() ? parseZeny(sellPrice) : undefined,
       // 個人の欲しい物リストに戻す（イベントタグを外す）場合、進捗数量は意味を
       // 持たなくなるので一緒にクリアする。
       obtainedQuantity: nextEventTag
@@ -131,14 +136,30 @@ export function WishlistEditForm({
         </span>
       </label>
       {eventTag.trim() && (
-        <label>
-          目標精錬値（任意）
-          <input
-            placeholder="例: +7"
-            value={refineTarget}
-            onChange={(e) => setRefineTarget(e.target.value)}
-          />
-        </label>
+        <>
+          <label>
+            目標精錬値（任意）
+            <input
+              placeholder="例: +7"
+              value={refineTarget}
+              onChange={(e) => setRefineTarget(e.target.value)}
+            />
+          </label>
+          <label>
+            精錬後の想定売値（任意）
+            <input
+              placeholder="例: 500k, 1.5M, 1G"
+              value={sellPrice}
+              onChange={(e) => setSellPrice(e.target.value)}
+            />
+            {sellPrice.trim() && unitCost.trim() && (
+              <span className="hint">
+                想定利益（1個あたり）:{" "}
+                {formatZ(parseZeny(sellPrice) - parseZeny(unitCost))}
+              </span>
+            )}
+          </label>
+        </>
       )}
       <div className="form-actions">
         <button type="submit">保存</button>
