@@ -566,6 +566,83 @@ button:active {
   border-radius: 999px;
 }
 
+.progress-bar-fill-refine {
+  background: var(--accent2);
+}
+
+/* イベント仕入れ計画: 目標個数まわりの小さいスペース単位 */
+.summary-tile-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.summary-tile {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.7rem;
+}
+
+.summary-tile .label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.summary-tile .value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-top: 0.15rem;
+}
+
+.summary-tile .value.accent {
+  color: var(--accent);
+}
+
+.summary-tile .value.good {
+  color: var(--good);
+}
+
+.refine-badge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--accent2);
+  font-size: 0.7rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+.qty-stepper {
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 0.3rem;
+}
+
+.qty-stepper button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 0.15rem 0.4rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.qty-stepper button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.qty-stepper button.stepper-minus:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
 .wow-positive {
   color: var(--good);
 }

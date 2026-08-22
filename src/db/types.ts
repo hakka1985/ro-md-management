@@ -168,6 +168,14 @@ export interface PartyMember {
   createdAt: number;
 }
 
+/**
+ * `quantity`/`unitCost` double as an event item's target procurement count
+ * and 仕入れ値上限 (max buying price) when `eventTag` is set — items sharing
+ * a tag are grouped into a dedicated event-prep panel with quantity-based
+ * progress instead of the plain list's single `obtained` flag, since a bulk
+ * event (e.g. buying 150+ pieces for a refine festival) needs partial
+ * progress tracking, not a binary got-it/not-yet.
+ */
 export interface WishlistItem {
   id: string;
   itemName: string;
@@ -176,6 +184,14 @@ export interface WishlistItem {
   memo?: string;
   obtained?: boolean;
   priority?: number;
+  /** Free-text event label (e.g. "2027精錬祭り") — presence of this field is what routes the item into the event-prep panel instead of the plain priority-ranked list. */
+  eventTag?: string;
+  /** How many of `quantity` have actually been procured so far — only meaningful when eventTag is set. */
+  obtainedQuantity?: number;
+  /** Of `obtainedQuantity`, how many reached `refineTarget` — kept clamped to obtainedQuantity (can't succeed more than you've bought). */
+  achievedQuantity?: number;
+  /** Target refine level for this event item (e.g. "+7") — display-only label, not validated against game data. */
+  refineTarget?: string;
   createdAt: number;
 }
 

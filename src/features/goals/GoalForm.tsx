@@ -20,7 +20,11 @@ export function GoalForm() {
   const [deadline, setDeadline] = useState("");
   const [memo, setMemo] = useState("");
 
-  const pendingWishlist = wishlistItems.filter((i) => !i.obtained);
+  // イベント仕入れ計画のアイテム（eventTag付き）は大量の個別行になりがちなので、
+  // 目標との連動候補からは除外する。
+  const pendingWishlist = wishlistItems.filter(
+    (i) => !i.eventTag && !i.obtained,
+  );
 
   function handleWishlistLink(id: string) {
     setWishlistItemId(id);

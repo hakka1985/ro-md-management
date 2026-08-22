@@ -51,22 +51,37 @@ interface WishlistEditFormProps {
   onClose: () => void;
 }
 
-function WishlistEditForm({ item, onSave, onClose }: WishlistEditFormProps) {
+export function WishlistEditForm({
+  item,
+  onSave,
+  onClose,
+}: WishlistEditFormProps) {
   const [itemName, setItemName] = useState(item.itemName);
   const [quantity, setQuantity] = useState(String(item.quantity));
   const [unitCost, setUnitCost] = useState(String(item.unitCost));
   const [memo, setMemo] = useState(item.memo ?? "");
+  const [eventTag, setEventTag] = useState(item.eventTag ?? "");
+  const [refineTarget, setRefineTarget] = useState(item.refineTarget ?? "");
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const qty = Number(quantity);
     const cost = parseZeny(unitCost);
     if (!itemName.trim() || Number.isNaN(qty) || qty <= 0 || cost < 0) return;
+    const nextEventTag = eventTag.trim() || undefined;
     onSave({
       itemName: itemName.trim(),
       quantity: qty,
       unitCost: cost,
       memo: memo.trim() || undefined,
+      eventTag: nextEventTag,
+      refineTarget: refineTarget.trim() || undefined,
+      // 個人の欲しい物リストに戻す（イベントタグを外す）場合、進捗数量は意味を
+      // 持たなくなるので一緒にクリアする。
+      obtainedQuantity: nextEventTag
+        ? Math.min(item.obtainedQuantity ?? 0, qty)
+        : undefined,
+      achievedQuantity: nextEventTag ? (item.achievedQuantity ?? 0) : undefined,
     });
   }
 
@@ -82,7 +97,7 @@ function WishlistEditForm({ item, onSave, onClose }: WishlistEditFormProps) {
         />
       </label>
       <label>
-        欲しい数
+        {eventTag.trim() ? "目標個数" : "欲しい数"}
         <input
           type="number"
           min="1"
@@ -93,7 +108,7 @@ function WishlistEditForm({ item, onSave, onClose }: WishlistEditFormProps) {
         />
       </label>
       <label>
-        1個あたりの想定コスト
+        {eventTag.trim() ? "仕入れ値上限" : "1個あたりの想定コスト"}
         <input
           value={unitCost}
           onChange={(e) => setUnitCost(e.target.value)}
@@ -104,6 +119,27 @@ function WishlistEditForm({ item, onSave, onClose }: WishlistEditFormProps) {
         メモ（任意）
         <input value={memo} onChange={(e) => setMemo(e.target.value)} />
       </label>
+      <label>
+        イベント名（任意）
+        <input
+          placeholder="例: 2027精錬祭り"
+          value={eventTag}
+          onChange={(e) => setEventTag(e.target.value)}
+        />
+        <span className="hint">
+          空にすると通常の欲しいものリストに戻ります（進捗はリセットされます）。
+        </span>
+      </label>
+      {eventTag.trim() && (
+        <label>
+          目標精錬値（任意）
+          <input
+            placeholder="例: +7"
+            value={refineTarget}
+            onChange={(e) => setRefineTarget(e.target.value)}
+          />
+        </label>
+      )}
       <div className="form-actions">
         <button type="submit">保存</button>
         <button type="button" onClick={onClose}>
@@ -115,8 +151,14 @@ function WishlistEditForm({ item, onSave, onClose }: WishlistEditFormProps) {
 }
 
 export function WishlistList() {
-  const { items, setObtained, updateItem, deleteItem, restoreItem, reorderItem } =
-    useWishlist();
+  const {
+    items,
+    setObtained,
+    updateItem,
+    deleteItem,
+    restoreItem,
+    reorderItem,
+  } = useWishlist();
   const { showUndo } = useToast();
   const { transactions } = useTransactions();
   const { debts } = useDebts();
@@ -136,8 +178,11 @@ export function WishlistList() {
   const currentBalance = getRealizedProfit(transactions) + debtBalance;
   const weeklyAverage = getWeeklyNetIncomeAverage(transactions);
 
-  const pending = items.filter((i) => !i.obtained);
-  const obtained = items.filter((i) => i.obtained);
+  // イベントタグ付きアイテムは「イベント仕入れ計画」パネル（EventPrepPanel）
+  // 側でグループ表示するので、通常の優先度リストからは除外する。
+  const personalItems = items.filter((i) => !i.eventTag);
+  const pending = personalItems.filter((i) => !i.obtained);
+  const obtained = personalItems.filter((i) => i.obtained);
 
   const q = search.trim().toLowerCase();
   const filtered = q
@@ -235,7 +280,9 @@ export function WishlistList() {
                 <tr
                   key={item.id}
                   draggable={sortKey === null}
-                  onDragStart={(e) => e.dataTransfer.setData("wishlistId", item.id)}
+                  onDragStart={(e) =>
+                    e.dataTransfer.setData("wishlistId", item.id)
+                  }
                   onDragOver={onDragOver}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -246,7 +293,10 @@ export function WishlistList() {
                   <td>{index + 1}</td>
                   <td style={{ textAlign: "left" }}>{item.itemName}</td>
                   <td>{item.quantity}</td>
-                  <td title={`${totalCost.toLocaleString()} z`} draggable={false}>
+                  <td
+                    title={`${totalCost.toLocaleString()} z`}
+                    draggable={false}
+                  >
                     {formatZ(totalCost)}
                   </td>
                   <td style={{ whiteSpace: "normal" }}>

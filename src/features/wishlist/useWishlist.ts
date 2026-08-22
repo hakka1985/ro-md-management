@@ -18,6 +18,8 @@ export function useWishlist() {
     quantity: number;
     unitCost: number;
     memo?: string;
+    eventTag?: string;
+    refineTarget?: string;
   }) {
     const maxPriority = (items ?? []).reduce(
       (max, i) => Math.max(max, i.priority ?? 0),
@@ -31,12 +33,45 @@ export function useWishlist() {
       memo: input.memo || undefined,
       obtained: false,
       priority: maxPriority + 1,
+      eventTag: input.eventTag || undefined,
+      refineTarget: input.refineTarget || undefined,
+      obtainedQuantity: input.eventTag ? 0 : undefined,
+      achievedQuantity: input.eventTag ? 0 : undefined,
       createdAt: Date.now(),
     });
   }
 
   async function setObtained(id: string, obtained: boolean) {
     await db.wishlistItems.update(id, { obtained });
+  }
+
+  /** Adjusts an event item's procured count, clamped to [0, quantity] — pulling it down also clamps achievedQuantity down to match (can't have refined more than you've bought). */
+  async function adjustObtainedQuantity(id: string, delta: number) {
+    const item = (items ?? []).find((i) => i.id === id);
+    if (!item) return;
+    const nextObtained = Math.max(
+      0,
+      Math.min(item.quantity, (item.obtainedQuantity ?? 0) + delta),
+    );
+    const nextAchieved = Math.min(item.achievedQuantity ?? 0, nextObtained);
+    await db.wishlistItems.update(id, {
+      obtainedQuantity: nextObtained,
+      achievedQuantity: nextAchieved,
+    });
+  }
+
+  /** Adjusts an event item's refine-target-achieved count, clamped to [0, obtainedQuantity]. */
+  async function adjustAchievedQuantity(id: string, delta: number) {
+    const item = (items ?? []).find((i) => i.id === id);
+    if (!item) return;
+    const nextAchieved = Math.max(
+      0,
+      Math.min(
+        item.obtainedQuantity ?? 0,
+        (item.achievedQuantity ?? 0) + delta,
+      ),
+    );
+    await db.wishlistItems.update(id, { achievedQuantity: nextAchieved });
   }
 
   async function updateItem(
@@ -79,5 +114,7 @@ export function useWishlist() {
     deleteItem,
     restoreItem,
     reorderItem,
+    adjustObtainedQuantity,
+    adjustAchievedQuantity,
   };
 }

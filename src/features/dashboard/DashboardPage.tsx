@@ -120,7 +120,11 @@ export function DashboardPage({ onRecordCharacter }: Props) {
   const efficiency = getMdEfficiency(runs, itemPrices).filter(
     (e) => e.runCount > 0,
   );
-  const pendingWishlist = wishlistItems.filter((i) => !i.obtained).length;
+  // イベント仕入れ計画のアイテム（eventTag付き）は個数進捗で管理していて
+  // obtainedを使わないので、この未達成カウントには含めない。
+  const pendingWishlist = wishlistItems.filter(
+    (i) => !i.eventTag && !i.obtained,
+  ).length;
 
   // The live dashboard view resets at the baseline (収益 tab stays full-history for looking back at arbitrary periods).
   const trendTransactions = baselineDate
