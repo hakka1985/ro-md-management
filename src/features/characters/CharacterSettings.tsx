@@ -23,6 +23,8 @@ function sortValue(c: Character, key: string): string | number {
       return c.account ?? "";
     case "level":
       return c.level ?? -1;
+    case "jobLevel":
+      return c.jobLevel ?? -1;
     case "job":
       return c.job ?? "";
     case "money":
@@ -49,6 +51,7 @@ export function CharacterSettings() {
   const [account, setAccount] = useState("");
   const [accountIsNew, setAccountIsNew] = useState(false);
   const [level, setLevel] = useState("");
+  const [jobLevel, setJobLevel] = useState("");
   const [job, setJob] = useState("");
   const [money, setMoney] = useState("");
 
@@ -99,12 +102,14 @@ export function CharacterSettings() {
     e.preventDefault();
     if (!name.trim() || !server.trim()) return;
     const lv = Number(level);
+    const jlv = Number(jobLevel);
     await addCharacter({
       name: name.trim(),
       server: server.trim(),
       account: account.trim() || undefined,
       job: job.trim(),
       level: level.trim() && !Number.isNaN(lv) ? lv : undefined,
+      jobLevel: jobLevel.trim() && !Number.isNaN(jlv) ? jlv : undefined,
       money: money.trim() ? parseZeny(money) : undefined,
     });
     setName("");
@@ -113,6 +118,7 @@ export function CharacterSettings() {
     setAccount("");
     setAccountIsNew(false);
     setLevel("");
+    setJobLevel("");
     setJob("");
     setMoney("");
   }
@@ -129,6 +135,13 @@ export function CharacterSettings() {
     const lv = Number(value);
     updateCharacter(id, {
       level: value.trim() && !Number.isNaN(lv) ? lv : undefined,
+    });
+  }
+
+  function handleJobLevelBlur(id: string, value: string) {
+    const jlv = Number(value);
+    updateCharacter(id, {
+      jobLevel: value.trim() && !Number.isNaN(jlv) ? jlv : undefined,
     });
   }
 
@@ -230,6 +243,14 @@ export function CharacterSettings() {
           style={{ width: "5.5rem" }}
         />
         <input
+          type="number"
+          min="1"
+          placeholder="JLv（任意）"
+          value={jobLevel}
+          onChange={(e) => setJobLevel(e.target.value)}
+          style={{ width: "5.5rem" }}
+        />
+        <input
           placeholder="職業（任意）"
           value={job}
           onChange={(e) => setJob(e.target.value)}
@@ -283,6 +304,13 @@ export function CharacterSettings() {
               <SortableHeader
                 label="Lv"
                 sortKey="level"
+                activeKey={sortKey}
+                dir={sortDir}
+                onSort={toggleSort}
+              />
+              <SortableHeader
+                label="JLv"
+                sortKey="jobLevel"
                 activeKey={sortKey}
                 dir={sortDir}
                 onSort={toggleSort}
@@ -349,6 +377,16 @@ export function CharacterSettings() {
                     style={{ width: "4rem" }}
                   />
                 </td>
+                <td>
+                  <input
+                    key={c.jobLevel}
+                    type="number"
+                    min="1"
+                    defaultValue={c.jobLevel ?? ""}
+                    onBlur={(e) => handleJobLevelBlur(c.id, e.target.value)}
+                    style={{ width: "4rem" }}
+                  />
+                </td>
                 <td>{c.job || "—"}</td>
                 <td>
                   <input
@@ -392,7 +430,7 @@ export function CharacterSettings() {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={7} className="empty">
+                <td colSpan={8} className="empty">
                   {search
                     ? "一致するキャラクターがありません"
                     : "まだキャラクターがいません"}

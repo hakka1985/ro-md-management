@@ -25,6 +25,7 @@ export function useCharacters() {
     account?: string;
     job?: string;
     level?: number;
+    jobLevel?: number;
     money?: number;
     memo?: string;
   }) {
@@ -40,6 +41,7 @@ export function useCharacters() {
       account: input.account || undefined,
       job: input.job || undefined,
       level: input.level,
+      jobLevel: input.jobLevel,
       money: input.money,
       memo: input.memo || undefined,
       archived: false,
@@ -92,6 +94,7 @@ export function useCharacters() {
       account?: string;
       job?: string;
       level?: number;
+      jobLevel?: number;
       memo?: string;
     }[],
   ): Promise<number> {
@@ -113,6 +116,7 @@ export function useCharacters() {
           account: input.account ?? match.account,
           job: input.job ?? match.job,
           level: input.level ?? match.level,
+          jobLevel: input.jobLevel ?? match.jobLevel,
           memo: input.memo ?? match.memo,
           updatedAt: now,
         });
@@ -125,6 +129,7 @@ export function useCharacters() {
           account: input.account || undefined,
           job: input.job || undefined,
           level: input.level,
+          jobLevel: input.jobLevel,
           memo: input.memo || undefined,
           archived: false,
           sortOrder: maxOrder,

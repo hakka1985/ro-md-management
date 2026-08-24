@@ -6,6 +6,7 @@ export interface Character {
   account?: string;
   job?: string;
   level?: number;
+  jobLevel?: number;
   memo?: string;
   archived?: boolean;
   /** True if this character can't do MDs at all (e.g. below the level gate) — excluded from every MD, not just one. */

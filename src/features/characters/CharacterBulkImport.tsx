@@ -2,10 +2,16 @@ import { useState } from "react";
 import { useCharacters } from "./useCharacters";
 
 const PLACEHOLDER =
-  '[{"name": "キャラ名", "server": "鯖名", "job": "職業", "level": 99}]';
+  '[{"name": "キャラ名", "server": "鯖名", "job": "職業", "level": 99, "jobLevel": 50}]';
 
 function readLevel(x: Record<string, unknown>): number | undefined {
   const raw = x.level ?? x.lv;
+  const n = Number(raw);
+  return typeof raw !== "undefined" && !Number.isNaN(n) ? n : undefined;
+}
+
+function readJobLevel(x: Record<string, unknown>): number | undefined {
+  const raw = x.jobLevel ?? x.jlv;
   const n = Number(raw);
   return typeof raw !== "undefined" && !Number.isNaN(n) ? n : undefined;
 }
@@ -41,6 +47,7 @@ export function CharacterBulkImport() {
         account: typeof x.account === "string" ? x.account : undefined,
         job: typeof x.job === "string" ? x.job : undefined,
         level: readLevel(x),
+        jobLevel: readJobLevel(x),
         memo: typeof x.memo === "string" ? x.memo : undefined,
       }));
     const count = await bulkUpsertCharacters(inputs);
@@ -55,7 +62,8 @@ export function CharacterBulkImport() {
         配列形式のJSONを貼り付けると複数キャラをまとめて登録できます。対応
         フィールドは <code>name</code>（必須）・<code>server</code>・
         <code>account</code>・<code>job</code>・<code>level</code>（
-        <code>lv</code>という名前でも可）・<code>memo</code>（すべて省略可）。
+        <code>lv</code>という名前でも可）・<code>jobLevel</code>（
+        <code>jlv</code>という名前でも可）・<code>memo</code>（すべて省略可）。
         すでに同じ名前・サーバーのキャラがいる場合は新規追加ではなく上書き
         更新されます（並び順は保持されたまま）。
       </p>
@@ -70,7 +78,7 @@ export function CharacterBulkImport() {
         フォーマット例:{" "}
         <code>
           {
-            '[{"name":"キャラ名","server":"鯖名","account":"アカウント名","job":"職業","level":99,"memo":"メモ"}]'
+            '[{"name":"キャラ名","server":"鯖名","account":"アカウント名","job":"職業","level":99,"jobLevel":50,"memo":"メモ"}]'
           }
         </code>
       </p>
