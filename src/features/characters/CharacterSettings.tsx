@@ -1,5 +1,6 @@
 import { useState, type DragEvent, type FormEvent } from "react";
 import { useCharacters } from "./useCharacters";
+import { useAppSettings } from "../settings/useAppSettings";
 import { parseZeny } from "../../lib/zeny";
 import { useTableSort } from "../../lib/useTableSort";
 import { SortableHeader } from "../../components/SortableHeader";
@@ -44,6 +45,7 @@ export function CharacterSettings() {
     reorderCharacter,
     togglePinned,
   } = useCharacters();
+  const { maxBaseLevel, maxJobLevel } = useAppSettings();
   const [search, setSearch] = useState("");
   const [name, setName] = useState("");
   const [server, setServer] = useState("");
@@ -367,7 +369,13 @@ export function CharacterSettings() {
                     style={{ width: "6rem" }}
                   />
                 </td>
-                <td>
+                <td
+                  className={
+                    maxBaseLevel !== null && c.level === maxBaseLevel
+                      ? "level-capped"
+                      : ""
+                  }
+                >
                   <input
                     key={c.level}
                     type="number"
@@ -375,9 +383,26 @@ export function CharacterSettings() {
                     defaultValue={c.level ?? ""}
                     onBlur={(e) => handleLevelBlur(c.id, e.target.value)}
                     style={{ width: "4rem" }}
+                    title={
+                      maxBaseLevel !== null && c.level === maxBaseLevel
+                        ? "Baseカンスト"
+                        : undefined
+                    }
                   />
+                  {maxBaseLevel !== null && c.level === maxBaseLevel && (
+                    <span className="level-capped-mark" title="Baseカンスト">
+                      {" "}
+                      ★
+                    </span>
+                  )}
                 </td>
-                <td>
+                <td
+                  className={
+                    maxJobLevel !== null && c.jobLevel === maxJobLevel
+                      ? "level-capped"
+                      : ""
+                  }
+                >
                   <input
                     key={c.jobLevel}
                     type="number"
@@ -385,7 +410,18 @@ export function CharacterSettings() {
                     defaultValue={c.jobLevel ?? ""}
                     onBlur={(e) => handleJobLevelBlur(c.id, e.target.value)}
                     style={{ width: "4rem" }}
+                    title={
+                      maxJobLevel !== null && c.jobLevel === maxJobLevel
+                        ? "Jobカンスト"
+                        : undefined
+                    }
                   />
+                  {maxJobLevel !== null && c.jobLevel === maxJobLevel && (
+                    <span className="level-capped-mark" title="Jobカンスト">
+                      {" "}
+                      ★
+                    </span>
+                  )}
                 </td>
                 <td>{c.job || "—"}</td>
                 <td>

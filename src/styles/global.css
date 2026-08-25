@@ -427,6 +427,15 @@ button:active {
   color: var(--text-muted);
 }
 
+.level-capped {
+  background: rgba(242, 184, 75, 0.12);
+}
+
+.level-capped-mark {
+  color: var(--accent);
+  font-weight: bold;
+}
+
 .entity-list-actions {
   display: flex;
   gap: 0.4rem;

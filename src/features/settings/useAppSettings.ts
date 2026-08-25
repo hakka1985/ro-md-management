@@ -8,6 +8,8 @@ const WEEKLY_GOAL_KEY = "weeklyGoal";
 const MD_GRID_TRANSPOSE_KEY = "mdGridTranspose";
 const CASH_FLOW_TARGET_KEY = "cashFlowTarget";
 const LAST_EXPORTED_AT_KEY = "lastExportedAt";
+const MAX_BASE_LEVEL_KEY = "maxBaseLevel";
+const MAX_JOB_LEVEL_KEY = "maxJobLevel";
 
 export function useAppSettings() {
   const useNRateRow = useLiveQuery(() => db.appConfig.get(USE_N_RATE_KEY), []);
@@ -50,6 +52,18 @@ export function useAppSettings() {
   const lastExportedAt =
     (lastExportedAtRow?.value as number | undefined) ?? null;
 
+  const maxBaseLevelRow = useLiveQuery(
+    () => db.appConfig.get(MAX_BASE_LEVEL_KEY),
+    [],
+  );
+  const maxBaseLevel = (maxBaseLevelRow?.value as number | undefined) ?? null;
+
+  const maxJobLevelRow = useLiveQuery(
+    () => db.appConfig.get(MAX_JOB_LEVEL_KEY),
+    [],
+  );
+  const maxJobLevel = (maxJobLevelRow?.value as number | undefined) ?? null;
+
   async function setUseNRate(value: boolean) {
     await db.appConfig.put({ key: USE_N_RATE_KEY, value });
   }
@@ -84,6 +98,22 @@ export function useAppSettings() {
     await db.appConfig.put({ key: LAST_EXPORTED_AT_KEY, value: Date.now() });
   }
 
+  async function setMaxBaseLevel(value: number | null) {
+    if (value === null) {
+      await db.appConfig.delete(MAX_BASE_LEVEL_KEY);
+    } else {
+      await db.appConfig.put({ key: MAX_BASE_LEVEL_KEY, value });
+    }
+  }
+
+  async function setMaxJobLevel(value: number | null) {
+    if (value === null) {
+      await db.appConfig.delete(MAX_JOB_LEVEL_KEY);
+    } else {
+      await db.appConfig.put({ key: MAX_JOB_LEVEL_KEY, value });
+    }
+  }
+
   return {
     useNRate,
     setUseNRate,
@@ -99,5 +129,9 @@ export function useAppSettings() {
     setCashFlowTarget,
     lastExportedAt,
     markExported,
+    maxBaseLevel,
+    setMaxBaseLevel,
+    maxJobLevel,
+    setMaxJobLevel,
   };
 }
