@@ -4,6 +4,7 @@ import { Modal } from "../../components/Modal";
 import { MasterExportImportPanel } from "../../components/MasterExportImportPanel";
 import { useTableSort } from "../../lib/useTableSort";
 import { SortableHeader } from "../../components/SortableHeader";
+import { useToast } from "../../components/toastContext";
 import type { MvpMaster } from "../../db/types";
 
 interface DialogProps {
@@ -152,7 +153,9 @@ function sortValue(m: MvpMaster, key: string): string | number {
 }
 
 export function MvpMasterManager() {
-  const { mvpMaster, archiveMvp, importMvpMaster } = useMvpMaster();
+  const { mvpMaster, archiveMvp, deleteMvp, restoreMvp, importMvpMaster } =
+    useMvpMaster();
+  const { showUndo } = useToast();
   const [dialogState, setDialogState] = useState<
     { open: false } | { open: true; editing: MvpMaster | null }
   >({ open: false });
@@ -241,6 +244,24 @@ export function MvpMasterManager() {
                       onClick={() => archiveMvp(m.id, !m.archived)}
                     >
                       {m.archived ? "復元" : "除外"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (
+                          window.confirm(
+                            `「${m.name}」をMVPマスタから削除しますか？（討伐記録からは削除されません。それらは不明なMVP扱いになります）`,
+                          )
+                        ) {
+                          const record = m;
+                          deleteMvp(m.id);
+                          showUndo(`「${m.name}」を削除しました`, () =>
+                            restoreMvp(record),
+                          );
+                        }
+                      }}
+                    >
+                      削除
                     </button>
                   </td>
                 </tr>

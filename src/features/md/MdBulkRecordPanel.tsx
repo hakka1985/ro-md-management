@@ -44,6 +44,8 @@ export function MdBulkRecordPanel({
   const [modeName, setModeName] = useState("");
   const [mvpDefeats, setMvpDefeats] = useState<Record<string, boolean>>({});
   const [clearTime, setClearTime] = useState("");
+  const [scoreInput, setScoreInput] = useState("");
+  const [roomsInput, setRoomsInput] = useState("");
   const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [estimatedCostInput, setEstimatedCostInput] = useState("");
   const [error, setError] = useState("");
@@ -127,6 +129,10 @@ export function MdBulkRecordPanel({
       ? parseZeny(estimatedCostInput)
       : undefined;
     const clearTimeSeconds = parseClearTime(clearTime);
+    const score =
+      dungeon.tracksScore && scoreInput.trim() ? Number(scoreInput) : undefined;
+    const rooms =
+      dungeon.tracksRooms && roomsInput.trim() ? Number(roomsInput) : undefined;
 
     const mvpByName = new Map(
       (mvpMaster ?? []).map((m) => [m.name.trim(), m]),
@@ -143,6 +149,8 @@ export function MdBulkRecordPanel({
         completedAt,
         mvpDefeats,
         clearTimeSeconds,
+        score,
+        rooms,
         items,
         modeName: hasModes ? modeName : undefined,
         estimatedCost,
@@ -265,6 +273,30 @@ export function MdBulkRecordPanel({
               onChange={(e) => setClearTime(e.target.value)}
             />
           </label>
+
+          {dungeon.tracksScore && (
+            <label>
+              得点
+              <input
+                type="number"
+                value={scoreInput}
+                onChange={(e) => setScoreInput(e.target.value)}
+              />
+            </label>
+          )}
+
+          {dungeon.tracksRooms && (
+            <label>
+              踏破部屋数
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={roomsInput}
+                onChange={(e) => setRoomsInput(e.target.value)}
+              />
+            </label>
+          )}
 
           <label>
             消耗品コスト（任意、1人あたりの想定金額）

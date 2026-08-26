@@ -42,6 +42,15 @@ export function useMvpMaster() {
     await db.mvpMaster.update(id, { archived });
   }
 
+  async function deleteMvp(id: string) {
+    await db.mvpMaster.delete(id);
+  }
+
+  /** Re-inserts a previously-deleted MVP as-is (same id) — powers the "元に戻す" undo toast. */
+  async function restoreMvp(record: MvpMaster) {
+    await db.mvpMaster.add(record);
+  }
+
   /** Imports a previously-exported MVPマスタ JSON — "replace" clears the table first, "merge" upserts by id (same semantics as the full export/import). */
   async function importMvpMaster(
     rows: MvpMaster[],
@@ -53,7 +62,15 @@ export function useMvpMaster() {
     });
   }
 
-  return { mvpMaster, addMvp, updateMvp, archiveMvp, importMvpMaster };
+  return {
+    mvpMaster,
+    addMvp,
+    updateMvp,
+    archiveMvp,
+    deleteMvp,
+    restoreMvp,
+    importMvpMaster,
+  };
 }
 
 export function useMvpKills() {

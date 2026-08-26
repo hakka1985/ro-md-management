@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent, type MouseEvent } from "react";
 import { useMdDungeons, useMdRuns } from "./useMd";
 import { useCharacters } from "../characters/useCharacters";
-import { useInventory } from "../finance/useFinance";
+import { useInventory, usePartyObtains } from "../finance/useFinance";
 import { useAppSettings } from "../settings/useAppSettings";
 import {
   getCtStatus,
@@ -13,6 +13,8 @@ import {
   isLevelExcluded,
   isMdExcluded,
   getAllMvpMobNames,
+  pickBestMdRecord,
+  type MdRecordCandidate,
 } from "./ctCalc";
 import { formatClearTime } from "../../lib/date";
 import { MdDropPanel } from "./MdDropPanel";
@@ -30,9 +32,30 @@ interface ActiveCell {
 
 interface DungeonStats {
   mobKillCounts: { mob: string; count: number }[];
-  bestTime: number | null;
+  bestRecord: MdRecordCandidate | null;
   eligibleCount: number;
   doneCount: number;
+}
+
+/** "最高記録: 得点1200・部屋8・12:34" for a dungeon tracking score/rooms, or the plain "最速12:34" wording every dungeon already had — null when there's nothing to show yet. */
+function dungeonRecordLabel(
+  dungeon: MdDungeon,
+  record: MdRecordCandidate | null,
+): string | null {
+  if (!record) return null;
+  if (!dungeon.tracksScore && !dungeon.tracksRooms) {
+    return record.clearTimeSeconds !== undefined
+      ? `最速${formatClearTime(record.clearTimeSeconds)}`
+      : null;
+  }
+  const parts = [
+    dungeon.tracksScore && record.score !== undefined ? `得点${record.score}` : null,
+    dungeon.tracksRooms && record.rooms !== undefined ? `部屋${record.rooms}` : null,
+    record.clearTimeSeconds !== undefined
+      ? formatClearTime(record.clearTimeSeconds)
+      : null,
+  ].filter((p): p is string => p !== null);
+  return parts.length > 0 ? `最高記録: ${parts.join("・")}` : null;
 }
 
 export interface MdRecordTarget {
@@ -64,6 +87,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
   const { runs, deleteRun } = useMdRuns();
   const { characters, updateCharacter, reorderCharacter } = useCharacters();
   const { removeStock } = useInventory();
+  const { entries: partyObtains, deletePartyObtain } = usePartyObtains();
   const { mdGridTranspose, toggleMdGridTranspose } = useAppSettings();
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
   const [unregisteredNames, setUnregisteredNames] = useState<string[]>([]);
@@ -139,8 +163,22 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
     const isDone = latest !== null && !status.available;
 
     if (isDone && latest) {
+      // Items obtained via a PT分配 (MD進捗のドロップ記録でPT人数2+) were
+      // routed through addPartyObtain, not addStock — undo those via
+      // deletePartyObtain so both the inventory delta and the now-orphaned
+      // PT在庫一覧 entry are cleaned up together, not just the stock number.
+      const linkedPartyObtains = (partyObtains ?? []).filter(
+        (e) => e.sourceRunId === latest.id,
+      );
+      const coveredItemNames = new Set(
+        linkedPartyObtains.map((e) => e.itemName),
+      );
+      for (const entry of linkedPartyObtains) {
+        await deletePartyObtain(entry.id);
+      }
       if (latest.items) {
         for (const [name, qty] of Object.entries(latest.items)) {
+          if (coveredItemNames.has(name)) continue;
           await removeStock(name, qty);
         }
       }
@@ -192,10 +230,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
       mob,
       count: dungeonRuns.filter((r) => r.mvpDefeats[mob]).length,
     }));
-    const clearTimes = dungeonRuns
-      .map((r) => r.clearTimeSeconds)
-      .filter((t): t is number => t !== undefined);
-    const bestTime = clearTimes.length > 0 ? Math.min(...clearTimes) : null;
+    const bestRecord = pickBestMdRecord(dungeonRuns, dungeon);
 
     const eligible = eligibleCharactersFor(dungeon);
     const doneCount = eligible.filter((character) => {
@@ -212,7 +247,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
       );
     }).length;
 
-    return { mobKillCounts, bestTime, eligibleCount: eligible.length, doneCount };
+    return { mobKillCounts, bestRecord, eligibleCount: eligible.length, doneCount };
   }
 
   const dungeonStatsById = new Map(
@@ -229,6 +264,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
   function DungeonHeader({ dungeon }: { dungeon: MdDungeon }) {
     const stats = dungeonStatsById.get(dungeon.id);
     if (!stats) return null;
+    const recordLabel = dungeonRecordLabel(dungeon, stats.bestRecord);
     return (
       <>
         {dungeon.name}
@@ -259,7 +295,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
               </span>
             </>
           )}
-          {stats.bestTime !== null && ` / 最速${formatClearTime(stats.bestTime)}`}
+          {recordLabel && ` / ${recordLabel}`}
         </span>
       </>
     );
@@ -510,6 +546,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
           <MdRunForm
             editingRun={null}
             onDone={() => setManualEntryOpen(false)}
+            onUnregisteredItems={setUnregisteredNames}
           />
         )}
       </Modal>

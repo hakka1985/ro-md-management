@@ -50,6 +50,8 @@ export function MdDropPanel({
     defaultMvpDefeats(activeMobNames),
   );
   const [clearTime, setClearTime] = useState("");
+  const [scoreInput, setScoreInput] = useState("");
+  const [roomsInput, setRoomsInput] = useState("");
   const [partySize, setPartySize] = useState("1");
   const [partyMembersInput, setPartyMembersInput] = useState("");
   const [estimatedCostInput, setEstimatedCostInput] = useState("");
@@ -88,12 +90,14 @@ export function MdDropPanel({
     }
 
     const completedAt = Date.now();
-    await logRun({
+    const runId = await logRun({
       characterId: character.id,
       dungeonId: dungeon.id,
       completedAt,
       mvpDefeats,
       clearTimeSeconds: parseClearTime(clearTime),
+      score: dungeon.tracksScore && scoreInput.trim() ? Number(scoreInput) : undefined,
+      rooms: dungeon.tracksRooms && roomsInput.trim() ? Number(roomsInput) : undefined,
       items,
       modeName: hasModes ? modeName : undefined,
       estimatedCost: estimatedCostInput.trim()
@@ -142,6 +146,7 @@ export function MdDropPanel({
           members: partyMembers,
           date: completedAt,
           memo: `MD周回: ${dungeon.name}`,
+          sourceRunId: runId,
         });
       } else {
         await addStock(name, qty);
@@ -191,6 +196,30 @@ export function MdDropPanel({
             onChange={(e) => setClearTime(e.target.value)}
           />
         </label>
+
+        {dungeon.tracksScore && (
+          <label>
+            得点
+            <input
+              type="number"
+              value={scoreInput}
+              onChange={(e) => setScoreInput(e.target.value)}
+            />
+          </label>
+        )}
+
+        {dungeon.tracksRooms && (
+          <label>
+            踏破部屋数
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={roomsInput}
+              onChange={(e) => setRoomsInput(e.target.value)}
+            />
+          </label>
+        )}
 
         <label>
           PT人数

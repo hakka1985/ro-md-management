@@ -123,6 +123,53 @@ export function defaultMvpDefeats(mobNames: string[]): Record<string, boolean> {
   return Object.fromEntries(mobNames.map((m) => [m, true]));
 }
 
+export interface MdRecordCandidate {
+  score?: number;
+  rooms?: number;
+  clearTimeSeconds?: number;
+}
+
+/**
+ * True when `a` beats `b` under this dungeon's tracked-record priority:
+ * 得点 (higher, only when tracksScore) > 踏破部屋数 (higher, only when
+ * tracksRooms) > クリア時間 (lower/faster, always the final tiebreak,
+ * matching MDs that only ever tracked clear time). Each tier only decides
+ * when the two candidates actually differ on it — a tie falls through to
+ * the next tier — and a candidate with no recorded value for a tier loses
+ * it (achieving something beats not attempting it).
+ */
+export function isBetterMdRecord(
+  a: MdRecordCandidate,
+  b: MdRecordCandidate,
+  dungeon: Pick<MdDungeon, "tracksScore" | "tracksRooms">,
+): boolean {
+  if (dungeon.tracksScore) {
+    const av = a.score ?? -Infinity;
+    const bv = b.score ?? -Infinity;
+    if (av !== bv) return av > bv;
+  }
+  if (dungeon.tracksRooms) {
+    const av = a.rooms ?? -Infinity;
+    const bv = b.rooms ?? -Infinity;
+    if (av !== bv) return av > bv;
+  }
+  const at = a.clearTimeSeconds ?? Infinity;
+  const bt = b.clearTimeSeconds ?? Infinity;
+  return at < bt;
+}
+
+/** Best of `candidates` under isBetterMdRecord, or null for an empty list — used to find a dungeon's current best record and to decide whether a new/edited run beats it. */
+export function pickBestMdRecord<T extends MdRecordCandidate>(
+  candidates: T[],
+  dungeon: Pick<MdDungeon, "tracksScore" | "tracksRooms">,
+): T | null {
+  return candidates.reduce<T | null>(
+    (best, candidate) =>
+      !best || isBetterMdRecord(candidate, best, dungeon) ? candidate : best,
+    null,
+  );
+}
+
 /** Every MVP mob name the dungeon can produce, across all its modes — falls back to the flat mvpMobs list for dungeons with no modes configured. Used where a dungeon-wide summary (not a single recorded run) is needed, e.g. the grid's per-dungeon kill tally. */
 export function getAllMvpMobNames(dungeon: MdDungeon): string[] {
   if (dungeon.modes && dungeon.modes.length > 0) {

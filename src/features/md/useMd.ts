@@ -1,7 +1,28 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../../db/db";
 import { newId } from "../../lib/id";
+import {
+  isBetterMdRecord,
+  pickBestMdRecord,
+  type MdRecordCandidate,
+} from "./ctCalc";
 import type { MdDungeon, MdRun } from "../../db/types";
+
+/** Whether `candidate` would beat every other run of the same dungeon (excluding `excludeRunId`, for edits) under isBetterMdRecord — used by logRun/updateRun to stamp MdRun.isNewRecord. */
+async function computeIsNewRecord(
+  dungeonId: string,
+  candidate: MdRecordCandidate,
+  excludeRunId?: string,
+): Promise<boolean> {
+  const dungeon = await db.mdDungeons.get(dungeonId);
+  if (!dungeon) return false;
+  const otherRuns = await db.mdRuns.where("dungeonId").equals(dungeonId).toArray();
+  const others = excludeRunId
+    ? otherRuns.filter((r) => r.id !== excludeRunId)
+    : otherRuns;
+  const currentBest = pickBestMdRecord(others, dungeon);
+  return !currentBest || isBetterMdRecord(candidate, currentBest, dungeon);
+}
 
 export function useMdDungeons() {
   const dungeons = useLiveQuery(
@@ -24,6 +45,8 @@ export function useMdDungeons() {
     mvpMobs?: string[];
     accountCharacterLimit?: number;
     requiredLevel?: number;
+    tracksScore?: boolean;
+    tracksRooms?: boolean;
   }) {
     const maxOrder = (dungeons ?? []).reduce(
       (max, d) => Math.max(max, d.sortOrder ?? 0),
@@ -38,6 +61,8 @@ export function useMdDungeons() {
       category: input.category || undefined,
       accountCharacterLimit: input.accountCharacterLimit,
       requiredLevel: input.requiredLevel,
+      tracksScore: input.tracksScore,
+      tracksRooms: input.tracksRooms,
       sortOrder: maxOrder + 1,
       archived: false,
     });
@@ -121,12 +146,21 @@ export function useMdRuns() {
     completedAt: number;
     mvpDefeats: Record<string, boolean>;
     clearTimeSeconds?: number;
+    score?: number;
+    rooms?: number;
     items?: Record<string, number>;
     memo?: string;
     modeName?: string;
     estimatedCost?: number;
+    partySize?: number;
+    partyMembers?: string[];
   }): Promise<string> {
     const id = newId();
+    const isNewRecord = await computeIsNewRecord(input.dungeonId, {
+      score: input.score,
+      rooms: input.rooms,
+      clearTimeSeconds: input.clearTimeSeconds,
+    });
     await db.mdRuns.add({
       id,
       characterId: input.characterId,
@@ -134,6 +168,9 @@ export function useMdRuns() {
       completedAt: input.completedAt,
       mvpDefeats: input.mvpDefeats,
       clearTimeSeconds: input.clearTimeSeconds,
+      score: input.score,
+      rooms: input.rooms,
+      isNewRecord,
       items:
         input.items && Object.keys(input.items).length > 0
           ? input.items
@@ -141,6 +178,11 @@ export function useMdRuns() {
       memo: input.memo || undefined,
       modeName: input.modeName,
       estimatedCost: input.estimatedCost,
+      partySize: input.partySize,
+      partyMembers:
+        input.partyMembers && input.partyMembers.length > 0
+          ? input.partyMembers
+          : undefined,
       createdAt: Date.now(),
     });
     return id;
@@ -150,7 +192,19 @@ export function useMdRuns() {
     id: string,
     patch: Partial<Omit<MdRun, "id" | "createdAt">>,
   ) {
-    await db.mdRuns.update(id, patch);
+    const existing = await db.mdRuns.get(id);
+    if (!existing) return;
+    const merged = { ...existing, ...patch };
+    const isNewRecord = await computeIsNewRecord(
+      merged.dungeonId,
+      {
+        score: merged.score,
+        rooms: merged.rooms,
+        clearTimeSeconds: merged.clearTimeSeconds,
+      },
+      id,
+    );
+    await db.mdRuns.update(id, { ...patch, isNewRecord });
   }
 
   async function deleteRun(id: string) {

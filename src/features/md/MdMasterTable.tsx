@@ -148,6 +148,32 @@ function MdHeaderCell({
           }}
           style={{ width: "5rem" }}
         />
+        <label
+          className="checkbox-label"
+          title="このMDに得点の実績がある場合にチェック。記録時に得点の入力欄が出て、最高記録の判定で最優先されます"
+        >
+          <input
+            type="checkbox"
+            checked={dungeon.tracksScore ?? false}
+            onChange={(e) =>
+              onUpdate(dungeon.id, { tracksScore: e.target.checked })
+            }
+          />
+          得点あり
+        </label>
+        <label
+          className="checkbox-label"
+          title="このMDに踏破部屋数の実績がある場合にチェック。記録時に部屋数の入力欄が出て、得点に次ぐ優先度で最高記録の判定に使われます"
+        >
+          <input
+            type="checkbox"
+            checked={dungeon.tracksRooms ?? false}
+            onChange={(e) =>
+              onUpdate(dungeon.id, { tracksRooms: e.target.checked })
+            }
+          />
+          部屋数あり
+        </label>
         {showArchiveButton && (
           <button
             type="button"

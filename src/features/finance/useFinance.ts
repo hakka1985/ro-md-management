@@ -339,6 +339,7 @@ export function usePartyObtains() {
     members: string[];
     date: number;
     memo?: string;
+    sourceRunId?: string;
   }): Promise<number> {
     const myShare = partyShare(input.totalQuantity, input.partySize);
     await db.partyObtains.add({
@@ -350,6 +351,7 @@ export function usePartyObtains() {
       myShare,
       date: input.date,
       memo: input.memo || undefined,
+      sourceRunId: input.sourceRunId,
       createdAt: Date.now(),
     });
     await bumpInventoryStock(input.itemName, myShare);

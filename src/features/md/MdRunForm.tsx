@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMdDungeons, useMdRuns } from "./useMd";
 import { useCharacters } from "../characters/useCharacters";
+import { useItemPrices, useInventory, usePartyMembers } from "../finance/useFinance";
 import {
   toDatetimeLocalValue,
   fromDatetimeLocalValue,
@@ -8,7 +9,9 @@ import {
   formatClearTime,
 } from "../../lib/date";
 import { parseZeny } from "../../lib/zeny";
+import { parseMemberNames } from "../../lib/party";
 import { MvpDefeatCheckboxes } from "./MvpDefeatCheckboxes";
+import { PartyMemberPicker } from "../../components/PartyMemberPicker";
 import { defaultMvpDefeats } from "./ctCalc";
 import type { MdRun } from "../../db/types";
 
@@ -17,12 +20,16 @@ const LAST_CHARACTER_KEY = "ro-md-management:lastCharacterName";
 interface Props {
   editingRun: MdRun | null;
   onDone: () => void;
+  onUnregisteredItems?: (names: string[]) => void;
 }
 
-export function MdRunForm({ editingRun, onDone }: Props) {
+export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
   const { dungeons } = useMdDungeons();
   const { characters } = useCharacters();
   const { logRun, updateRun } = useMdRuns();
+  const { itemPrices, upsertItemPrice } = useItemPrices();
+  const { addStock } = useInventory();
+  const { addPartyMember } = usePartyMembers();
 
   const [dungeonName, setDungeonName] = useState("");
   const [characterName, setCharacterName] = useState(
@@ -33,6 +40,11 @@ export function MdRunForm({ editingRun, onDone }: Props) {
   );
   const [mvpDefeats, setMvpDefeats] = useState<Record<string, boolean>>({});
   const [clearTime, setClearTime] = useState("");
+  const [scoreInput, setScoreInput] = useState("");
+  const [roomsInput, setRoomsInput] = useState("");
+  const [partySizeInput, setPartySizeInput] = useState("1");
+  const [partyMembersInput, setPartyMembersInput] = useState("");
+  const [quantities, setQuantities] = useState<Record<string, string>>({});
   const [memo, setMemo] = useState("");
   const [modeName, setModeName] = useState("");
   const [estimatedCostInput, setEstimatedCostInput] = useState("");
@@ -45,6 +57,17 @@ export function MdRunForm({ editingRun, onDone }: Props) {
   const activeMobNames = hasModes
     ? (matchedDungeon?.modes?.find((m) => m.name === modeName)?.mvpMobs ?? [])
     : (matchedDungeon?.mvpMobs ?? []);
+  const party = Math.max(1, Number(partySizeInput) || 1);
+  // Union with whatever's already in `quantities` so a previously-recorded
+  // item stays editable even if the dungeon's item master list later
+  // dropped it (edit mode loads straight from the run, not from the
+  // current master list).
+  const itemNames = [
+    ...new Set([
+      ...(matchedDungeon ? Object.keys(matchedDungeon.items) : []),
+      ...Object.keys(quantities),
+    ]),
+  ];
 
   useEffect(() => {
     if (!editingRun) return;
@@ -60,9 +83,25 @@ export function MdRunForm({ editingRun, onDone }: Props) {
         : "",
     );
     setMemo(editingRun.memo ?? "");
+    setScoreInput(editingRun.score !== undefined ? String(editingRun.score) : "");
+    setRoomsInput(editingRun.rooms !== undefined ? String(editingRun.rooms) : "");
     setModeName(editingRun.modeName ?? dungeon?.modes?.[0]?.name ?? "");
     setEstimatedCostInput(
       editingRun.estimatedCost ? String(editingRun.estimatedCost) : "",
+    );
+    setPartySizeInput(String(editingRun.partySize ?? 1));
+    setPartyMembersInput((editingRun.partyMembers ?? []).join(" "));
+    const names = new Set([
+      ...Object.keys(dungeon?.items ?? {}),
+      ...Object.keys(editingRun.items ?? {}),
+    ]);
+    setQuantities(
+      Object.fromEntries(
+        [...names].map((name) => [
+          name,
+          String(editingRun.items?.[name] ?? 0),
+        ]),
+      ),
     );
   }, [editingRun, dungeons, characters]);
 
@@ -76,6 +115,14 @@ export function MdRunForm({ editingRun, onDone }: Props) {
         firstMode
           ? (dungeon?.modes?.[0]?.mvpMobs ?? [])
           : (dungeon?.mvpMobs ?? []),
+      ),
+    );
+    setQuantities(
+      Object.fromEntries(
+        Object.entries(dungeon?.items ?? {}).map(([name, qty]) => [
+          name,
+          String(qty || 0),
+        ]),
       ),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -108,24 +155,54 @@ export function MdRunForm({ editingRun, onDone }: Props) {
       return;
     }
 
+    const items: Record<string, number> = {};
+    for (const name of itemNames) {
+      const qty = Number(quantities[name] ?? "0");
+      if (!Number.isNaN(qty) && qty > 0) items[name] = qty;
+    }
+    const partyMembers = party > 1 ? parseMemberNames(partyMembersInput) : [];
+
     const payload = {
       dungeonId: dungeon.id,
       characterId: character.id,
       completedAt: fromDatetimeLocalValue(completedAt),
       mvpDefeats,
       clearTimeSeconds: parseClearTime(clearTime),
+      score: dungeon.tracksScore && scoreInput.trim() ? Number(scoreInput) : undefined,
+      rooms: dungeon.tracksRooms && roomsInput.trim() ? Number(roomsInput) : undefined,
+      items: Object.keys(items).length > 0 ? items : undefined,
       memo: memo.trim() || undefined,
       modeName: (dungeon.modes?.length ?? 0) > 0 ? modeName : undefined,
       estimatedCost: estimatedCostInput.trim()
         ? parseZeny(estimatedCostInput)
         : undefined,
+      partySize: party > 1 ? party : undefined,
+      partyMembers: partyMembers.length > 0 ? partyMembers : undefined,
     };
 
+    for (const member of partyMembers) await addPartyMember(member);
+
     if (editingRun) {
+      // Editing only patches this run's own record — it does not touch
+      // inventory or any linked PT在庫一覧 entry (matches 削除 behavior).
+      // Actual stock corrections belong in 取引・在庫 / PT在庫一覧.
       await updateRun(editingRun.id, payload);
     } else {
       await logRun(payload);
       localStorage.setItem(LAST_CHARACTER_KEY, characterName);
+
+      if (Object.keys(items).length > 0) {
+        const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
+        const newlyUnregistered: string[] = [];
+        for (const [name, qty] of Object.entries(items)) {
+          if (!knownNames.has(name)) {
+            await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+            newlyUnregistered.push(name);
+          }
+          await addStock(name, qty);
+        }
+        if (newlyUnregistered.length > 0) onUnregisteredItems?.(newlyUnregistered);
+      }
     }
     onDone();
   }
@@ -207,6 +284,51 @@ export function MdRunForm({ editingRun, onDone }: Props) {
         />
       </label>
 
+      {matchedDungeon?.tracksScore && (
+        <label>
+          得点
+          <input
+            type="number"
+            value={scoreInput}
+            onChange={(e) => setScoreInput(e.target.value)}
+          />
+        </label>
+      )}
+
+      {matchedDungeon?.tracksRooms && (
+        <label>
+          踏破部屋数
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={roomsInput}
+            onChange={(e) => setRoomsInput(e.target.value)}
+          />
+        </label>
+      )}
+
+      <label>
+        PT人数
+        <input
+          type="number"
+          min="1"
+          step="1"
+          value={partySizeInput}
+          onChange={(e) => setPartySizeInput(e.target.value)}
+        />
+      </label>
+
+      {party > 1 && (
+        <label>
+          PTメンバー（自分以外、任意）
+          <PartyMemberPicker
+            value={partyMembersInput}
+            onChange={setPartyMembersInput}
+          />
+        </label>
+      )}
+
       <label>
         消耗品コスト（任意、例: 10k）
         <input
@@ -215,6 +337,32 @@ export function MdRunForm({ editingRun, onDone }: Props) {
           onChange={(e) => setEstimatedCostInput(e.target.value)}
         />
       </label>
+
+      {itemNames.length > 0 && (
+        <>
+          <h3>獲得アイテム（自分の取り分の数量）</h3>
+          {editingRun && (
+            <p className="hint">
+              ここでの数量・PT人数の修正は、この周回記録自体の内容のみを直します（在庫やPT在庫一覧の数値は連動して変更されません。実際の在庫を直す場合は「取引・在庫」またはPT在庫一覧から調整してください）。
+            </p>
+          )}
+          {itemNames.map((name) => (
+            <label key={name}>
+              {name}
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={quantities[name] ?? "0"}
+                onChange={(e) =>
+                  setQuantities({ ...quantities, [name]: e.target.value })
+                }
+                onFocus={(e) => e.currentTarget.select()}
+              />
+            </label>
+          ))}
+        </>
+      )}
 
       <label>
         メモ（任意）

@@ -22,6 +22,8 @@ interface RunRow {
   characterName: string;
   defeatedText: string;
   itemsText: string;
+  partyText: string;
+  recordText: string;
 }
 
 function sortValue(row: RunRow, key: string): string | number {
@@ -68,12 +70,21 @@ export function MdRunList({ onEdit }: Props) {
       .filter(([, qty]) => qty > 0)
       .map(([name, qty]) => `${name}×${qty}`)
       .join("、");
+    const partyText =
+      run.partySize && run.partySize > 1 ? `PT${run.partySize}人` : "";
+    const recordParts = [
+      run.score !== undefined ? `得点${run.score}` : null,
+      run.rooms !== undefined ? `部屋${run.rooms}` : null,
+    ].filter((p): p is string => p !== null);
+    const recordText = recordParts.join("・");
     return {
       run,
       dungeonName: dungeonNameById.get(run.dungeonId) ?? "（不明なMD）",
       characterName: characterNameById.get(run.characterId) ?? "",
       defeatedText,
       itemsText,
+      partyText,
+      recordText,
     };
   });
 
@@ -137,6 +148,8 @@ export function MdRunList({ onEdit }: Props) {
               />
               <th>討伐</th>
               <th>獲得アイテム</th>
+              <th>PT人数</th>
+              <th>得点/部屋数</th>
               <SortableHeader
                 label="クリア時間"
                 sortKey="clearTime"
@@ -149,7 +162,7 @@ export function MdRunList({ onEdit }: Props) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map(({ run: r, dungeonName, characterName, defeatedText, itemsText }) => (
+            {sorted.map(({ run: r, dungeonName, characterName, defeatedText, itemsText, partyText, recordText }) => (
               <tr key={r.id}>
                 <td>{formatDateTime(r.completedAt)}</td>
                 <td>
@@ -161,10 +174,21 @@ export function MdRunList({ onEdit }: Props) {
                 <td>{characterName}</td>
                 <td>{defeatedText || "—"}</td>
                 <td style={{ whiteSpace: "normal" }}>{itemsText || "—"}</td>
+                <td>{partyText || "—"}</td>
+                <td>{recordText || "—"}</td>
                 <td>
                   {r.clearTimeSeconds !== undefined
                     ? formatClearTime(r.clearTimeSeconds)
                     : "—"}
+                  {r.isNewRecord && (
+                    <span
+                      className="entity-list-sub"
+                      title="この周回の時点で、このMDの最高記録を更新しました（得点→部屋数→クリア時間の優先順で判定）"
+                    >
+                      {" "}
+                      🏆新記録
+                    </span>
+                  )}
                 </td>
                 <td style={{ whiteSpace: "normal" }}>{r.memo || "—"}</td>
                 <td>
@@ -191,7 +215,7 @@ export function MdRunList({ onEdit }: Props) {
             ))}
             {sorted.length === 0 && (
               <tr>
-                <td colSpan={8} className="empty">
+                <td colSpan={10} className="empty">
                   {search || dateFrom || dateTo
                     ? "一致する周回記録がありません"
                     : "まだ周回記録がありません"}

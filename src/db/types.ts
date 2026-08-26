@@ -50,6 +50,10 @@ export interface MdDungeon {
   modes?: MdDungeonMode[];
   /** Pinned dungeons sort first regardless of sortOrder — for the few you run every day. */
   pinned?: boolean;
+  /** Whether this MD has a 得点 (score) achievement — not every MD does, so the run-recording forms only show a score input, and the best-record comparison only weighs score, when this is set. Highest priority in the best-record tiebreak (see isBetterMdRecord). */
+  tracksScore?: boolean;
+  /** Whether this MD has a 踏破部屋数 (rooms cleared) achievement — same opt-in shape as tracksScore, second priority in the best-record tiebreak. */
+  tracksRooms?: boolean;
 }
 
 export interface MdRun {
@@ -59,12 +63,22 @@ export interface MdRun {
   completedAt: number;
   mvpDefeats: Record<string, boolean>;
   clearTimeSeconds?: number;
+  /** 得点 — only meaningful when the dungeon's tracksScore is set. */
+  score?: number;
+  /** 踏破部屋数 — only meaningful when the dungeon's tracksRooms is set. */
+  rooms?: number;
+  /** True if, at the moment this run was logged/edited, its (score, rooms, clearTime) beat every other run of the same dungeon under the score→rooms→clearTime priority (isBetterMdRecord) — a point-in-time "you set a new record" marker, not a live "is this still the record" status (it isn't retroactively cleared if a later run surpasses it). */
+  isNewRecord?: boolean;
   items?: Record<string, number>;
   memo?: string;
   /** Which of the dungeon's modes was cleared, when the dungeon has more than one — undefined for single-mode dungeons. */
   modeName?: string;
   /** Estimated zeny spent on consumables (potions, materials, etc.) for this run — subtracted from the drop value to get a net (not just gross) efficiency figure. */
   estimatedCost?: number;
+  /** How many people split this run's drops — undefined/1 means solo. Record-keeping only (so a wrong value can be corrected later); `items` always holds the player's own share regardless of this number. Actual PT-obtain inventory reconciliation happens separately via PartyObtainEntry/PT在庫一覧. */
+  partySize?: number;
+  /** Party member names (self excluded) — only meaningful when partySize > 1. */
+  partyMembers?: string[];
   createdAt: number;
 }
 
@@ -158,6 +172,8 @@ export interface PartyObtainEntry {
   memo?: string;
   /** Manually marked once this batch has actually been resolved (sold and its proceeds distributed via 貸し借り, or personally consumed) — items aren't individually tracked once merged into inventory, so there's no way to auto-detect this from a later sell/consume record. */
   settled?: boolean;
+  /** MdRun id, when this entry was created from MD進捗's drop recording (PT人数 2+) — lets 解除（グリッドのセル再クリック）find and remove the matching PT在庫一覧 entry instead of leaving it orphaned once its source run is deleted. Undefined for entries recorded elsewhere (取引・在庫の「入手」). */
+  sourceRunId?: string;
   createdAt: number;
 }
 
