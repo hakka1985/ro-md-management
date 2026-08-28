@@ -54,6 +54,10 @@ export interface MdDungeon {
   tracksScore?: boolean;
   /** Whether this MD has a 踏破部屋数 (rooms cleared) achievement — same opt-in shape as tracksScore, second priority in the best-record tiebreak. */
   tracksRooms?: boolean;
+  /** Pre-filled 得点 value when starting a new run record for this dungeon (e.g. a fixed-score MD where it's always 1000) — only used as the record form's initial value, never touches existing runs. */
+  defaultScore?: number;
+  /** Pre-filled 踏破部屋数 value when starting a new run record for this dungeon — same purpose as defaultScore. */
+  defaultRooms?: number;
 }
 
 export interface MdRun {

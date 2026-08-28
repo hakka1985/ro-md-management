@@ -71,6 +71,8 @@ export function MdBulkRecordPanel({
       ? (d?.modes?.[0]?.mvpMobs ?? [])
       : (d?.mvpMobs ?? []);
     setMvpDefeats(defaultMvpDefeats(mobs));
+    setScoreInput(d?.defaultScore !== undefined ? String(d.defaultScore) : "");
+    setRoomsInput(d?.defaultRooms !== undefined ? String(d.defaultRooms) : "");
     setQuantities(
       Object.fromEntries(
         Object.entries(d?.items ?? {}).map(([name, qty]) => [

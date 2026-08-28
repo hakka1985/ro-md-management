@@ -123,6 +123,12 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
           : (dungeon?.mvpMobs ?? []),
       ),
     );
+    setScoreInput(
+      dungeon?.defaultScore !== undefined ? String(dungeon.defaultScore) : "",
+    );
+    setRoomsInput(
+      dungeon?.defaultRooms !== undefined ? String(dungeon.defaultRooms) : "",
+    );
     setQuantities(
       Object.fromEntries(
         Object.entries(dungeon?.items ?? {}).map(([name, qty]) => [

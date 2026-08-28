@@ -50,8 +50,12 @@ export function MdDropPanel({
     defaultMvpDefeats(activeMobNames),
   );
   const [clearTime, setClearTime] = useState("");
-  const [scoreInput, setScoreInput] = useState("");
-  const [roomsInput, setRoomsInput] = useState("");
+  const [scoreInput, setScoreInput] = useState(
+    dungeon.defaultScore !== undefined ? String(dungeon.defaultScore) : "",
+  );
+  const [roomsInput, setRoomsInput] = useState(
+    dungeon.defaultRooms !== undefined ? String(dungeon.defaultRooms) : "",
+  );
   const [partySize, setPartySize] = useState("1");
   const [partyMembersInput, setPartyMembersInput] = useState("");
   const [estimatedCostInput, setEstimatedCostInput] = useState("");

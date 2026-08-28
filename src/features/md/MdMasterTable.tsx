@@ -161,6 +161,24 @@ function MdHeaderCell({
           />
           得点あり
         </label>
+        {dungeon.tracksScore && (
+          <input
+            key={dungeon.defaultScore}
+            type="number"
+            placeholder="初期値なし"
+            title="記録フォームを開いたときに得点欄へ最初から入る値（任意）。固定得点のMD向け"
+            draggable={false}
+            defaultValue={dungeon.defaultScore ?? ""}
+            onBlur={(e) => {
+              const value = e.target.value.trim();
+              const n = Number(value);
+              onUpdate(dungeon.id, {
+                defaultScore: value && !Number.isNaN(n) ? n : undefined,
+              });
+            }}
+            style={{ width: "5.5rem" }}
+          />
+        )}
         <label
           className="checkbox-label"
           title="このMDに踏破部屋数の実績がある場合にチェック。記録時に部屋数の入力欄が出て、得点に次ぐ優先度で最高記録の判定に使われます"
@@ -174,6 +192,26 @@ function MdHeaderCell({
           />
           部屋数あり
         </label>
+        {dungeon.tracksRooms && (
+          <input
+            key={dungeon.defaultRooms}
+            type="number"
+            min="0"
+            placeholder="初期値なし"
+            title="記録フォームを開いたときに部屋数欄へ最初から入る値（任意）。固定部屋数のMD向け"
+            draggable={false}
+            defaultValue={dungeon.defaultRooms ?? ""}
+            onBlur={(e) => {
+              const value = e.target.value.trim();
+              const n = Number(value);
+              onUpdate(dungeon.id, {
+                defaultRooms:
+                  value && !Number.isNaN(n) && n >= 0 ? n : undefined,
+              });
+            }}
+            style={{ width: "5.5rem" }}
+          />
+        )}
         {showArchiveButton && (
           <button
             type="button"
