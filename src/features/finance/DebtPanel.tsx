@@ -141,6 +141,7 @@ export function DebtPanel() {
     Record<string, string>
   >({});
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const editingDebt = (debts ?? []).find((d) => d.id === editingId) ?? null;
 
   const filtered = (debts ?? [])
@@ -162,18 +163,24 @@ export function DebtPanel() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const amount = parseZeny(amountInput);
     if (!counterparty.trim() || amount <= 0) return;
-    await addDebt({
-      direction,
-      counterparty: counterparty.trim(),
-      amount,
-      date: Date.now(),
-      memo: memo.trim(),
-    });
-    setCounterparty("");
-    setAmountInput("");
-    setMemo("");
+    setSubmitting(true);
+    try {
+      await addDebt({
+        direction,
+        counterparty: counterparty.trim(),
+        amount,
+        date: Date.now(),
+        memo: memo.trim(),
+      });
+      setCounterparty("");
+      setAmountInput("");
+      setMemo("");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   async function handleRepay(id: string) {
@@ -235,7 +242,9 @@ export function DebtPanel() {
           value={memo}
           onChange={(e) => setMemo(e.target.value)}
         />
-        <button type="submit">記録する</button>
+        <button type="submit" disabled={submitting}>
+          記録する
+        </button>
       </form>
 
       <input

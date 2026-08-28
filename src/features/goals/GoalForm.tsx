@@ -19,6 +19,7 @@ export function GoalForm() {
   const [wishlistItemId, setWishlistItemId] = useState("");
   const [deadline, setDeadline] = useState("");
   const [memo, setMemo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   // イベント仕入れ計画のアイテム（eventTag付き）は大量の個別行になりがちなので、
   // 目標との連動候補からは除外する。
@@ -37,21 +38,27 @@ export function GoalForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const amount = parseZeny(targetAmount);
     if (!title.trim() || amount <= 0) return;
-    await addGoal({
-      title: title.trim(),
-      tier,
-      targetAmount: amount,
-      wishlistItemId: wishlistItemId || undefined,
-      deadline: deadline ? new Date(deadline).getTime() : undefined,
-      memo: memo.trim(),
-    });
-    setTitle("");
-    setTargetAmount("");
-    setWishlistItemId("");
-    setDeadline("");
-    setMemo("");
+    setSubmitting(true);
+    try {
+      await addGoal({
+        title: title.trim(),
+        tier,
+        targetAmount: amount,
+        wishlistItemId: wishlistItemId || undefined,
+        deadline: deadline ? new Date(deadline).getTime() : undefined,
+        memo: memo.trim(),
+      });
+      setTitle("");
+      setTargetAmount("");
+      setWishlistItemId("");
+      setDeadline("");
+      setMemo("");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -122,7 +129,9 @@ export function GoalForm() {
       </label>
 
       <div className="form-actions">
-        <button type="submit">追加する</button>
+        <button type="submit" disabled={submitting}>
+          追加する
+        </button>
       </div>
     </form>
   );

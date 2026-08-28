@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMdDungeons, useMdRuns } from "./useMd";
 import { useCharacters } from "../characters/useCharacters";
-import { useItemPrices, useInventory, usePartyMembers } from "../finance/useFinance";
+import {
+  useItemPrices,
+  useInventory,
+  usePartyMembers,
+} from "../finance/useFinance";
 import {
   toDatetimeLocalValue,
   fromDatetimeLocalValue,
@@ -49,6 +53,7 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
   const [modeName, setModeName] = useState("");
   const [estimatedCostInput, setEstimatedCostInput] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const activeDungeons = dungeons?.filter((d) => !d.archived) ?? [];
   const activeCharacters = characters?.filter((c) => !c.archived) ?? [];
@@ -83,8 +88,12 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
         : "",
     );
     setMemo(editingRun.memo ?? "");
-    setScoreInput(editingRun.score !== undefined ? String(editingRun.score) : "");
-    setRoomsInput(editingRun.rooms !== undefined ? String(editingRun.rooms) : "");
+    setScoreInput(
+      editingRun.score !== undefined ? String(editingRun.score) : "",
+    );
+    setRoomsInput(
+      editingRun.rooms !== undefined ? String(editingRun.rooms) : "",
+    );
     setModeName(editingRun.modeName ?? dungeon?.modes?.[0]?.name ?? "");
     setEstimatedCostInput(
       editingRun.estimatedCost ? String(editingRun.estimatedCost) : "",
@@ -97,10 +106,7 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
     ]);
     setQuantities(
       Object.fromEntries(
-        [...names].map((name) => [
-          name,
-          String(editingRun.items?.[name] ?? 0),
-        ]),
+        [...names].map((name) => [name, String(editingRun.items?.[name] ?? 0)]),
       ),
     );
   }, [editingRun, dungeons, characters]);
@@ -130,12 +136,14 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
 
   function handleModeChange(name: string) {
     setModeName(name);
-    const mobs = matchedDungeon?.modes?.find((m) => m.name === name)?.mvpMobs ?? [];
+    const mobs =
+      matchedDungeon?.modes?.find((m) => m.name === name)?.mvpMobs ?? [];
     setMvpDefeats(defaultMvpDefeats(mobs));
   }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const dungeon = activeDungeons.find((d) => d.name === dungeonName);
     if (!dungeon) {
       setError(
@@ -168,8 +176,14 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
       completedAt: fromDatetimeLocalValue(completedAt),
       mvpDefeats,
       clearTimeSeconds: parseClearTime(clearTime),
-      score: dungeon.tracksScore && scoreInput.trim() ? Number(scoreInput) : undefined,
-      rooms: dungeon.tracksRooms && roomsInput.trim() ? Number(roomsInput) : undefined,
+      score:
+        dungeon.tracksScore && scoreInput.trim()
+          ? Number(scoreInput)
+          : undefined,
+      rooms:
+        dungeon.tracksRooms && roomsInput.trim()
+          ? Number(roomsInput)
+          : undefined,
       items: Object.keys(items).length > 0 ? items : undefined,
       memo: memo.trim() || undefined,
       modeName: (dungeon.modes?.length ?? 0) > 0 ? modeName : undefined,
@@ -180,31 +194,37 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
       partyMembers: partyMembers.length > 0 ? partyMembers : undefined,
     };
 
-    for (const member of partyMembers) await addPartyMember(member);
+    setSubmitting(true);
+    try {
+      for (const member of partyMembers) await addPartyMember(member);
 
-    if (editingRun) {
-      // Editing only patches this run's own record — it does not touch
-      // inventory or any linked PT在庫一覧 entry (matches 削除 behavior).
-      // Actual stock corrections belong in 取引・在庫 / PT在庫一覧.
-      await updateRun(editingRun.id, payload);
-    } else {
-      await logRun(payload);
-      localStorage.setItem(LAST_CHARACTER_KEY, characterName);
+      if (editingRun) {
+        // Editing only patches this run's own record — it does not touch
+        // inventory or any linked PT在庫一覧 entry (matches 削除 behavior).
+        // Actual stock corrections belong in 取引・在庫 / PT在庫一覧.
+        await updateRun(editingRun.id, payload);
+      } else {
+        await logRun(payload);
+        localStorage.setItem(LAST_CHARACTER_KEY, characterName);
 
-      if (Object.keys(items).length > 0) {
-        const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
-        const newlyUnregistered: string[] = [];
-        for (const [name, qty] of Object.entries(items)) {
-          if (!knownNames.has(name)) {
-            await upsertItemPrice({ itemName: name, expectedPrice: 0 });
-            newlyUnregistered.push(name);
+        if (Object.keys(items).length > 0) {
+          const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
+          const newlyUnregistered: string[] = [];
+          for (const [name, qty] of Object.entries(items)) {
+            if (!knownNames.has(name)) {
+              await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+              newlyUnregistered.push(name);
+            }
+            await addStock(name, qty);
           }
-          await addStock(name, qty);
+          if (newlyUnregistered.length > 0)
+            onUnregisteredItems?.(newlyUnregistered);
         }
-        if (newlyUnregistered.length > 0) onUnregisteredItems?.(newlyUnregistered);
       }
+      onDone();
+    } finally {
+      setSubmitting(false);
     }
-    onDone();
   }
 
   return (
@@ -370,8 +390,10 @@ export function MdRunForm({ editingRun, onDone, onUnregisteredItems }: Props) {
       </label>
 
       <div className="form-actions">
-        <button type="submit">{editingRun ? "更新する" : "記録する"}</button>
-        <button type="button" onClick={onDone}>
+        <button type="submit" disabled={submitting}>
+          {editingRun ? "更新する" : "記録する"}
+        </button>
+        <button type="button" onClick={onDone} disabled={submitting}>
           キャンセル
         </button>
       </div>

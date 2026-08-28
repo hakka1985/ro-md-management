@@ -49,8 +49,12 @@ function dungeonRecordLabel(
       : null;
   }
   const parts = [
-    dungeon.tracksScore && record.score !== undefined ? `得点${record.score}` : null,
-    dungeon.tracksRooms && record.rooms !== undefined ? `部屋${record.rooms}` : null,
+    dungeon.tracksScore && record.score !== undefined
+      ? `得点${record.score}`
+      : null,
+    dungeon.tracksRooms && record.rooms !== undefined
+      ? `部屋${record.rooms}`
+      : null,
     record.clearTimeSeconds !== undefined
       ? formatClearTime(record.clearTimeSeconds)
       : null,
@@ -90,6 +94,7 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
   const { entries: partyObtains, deletePartyObtain } = usePartyObtains();
   const { mdGridTranspose, toggleMdGridTranspose } = useAppSettings();
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null);
+  const [undoingCellKey, setUndoingCellKey] = useState<string | null>(null);
   const [unregisteredNames, setUnregisteredNames] = useState<string[]>([]);
   const [unregisteredMvpNames, setUnregisteredMvpNames] = useState<string[]>(
     [],
@@ -122,7 +127,8 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
       (c) => c.id === pendingRecordTarget.characterId,
     );
     if (dungeon && character) {
-      if (!isMdExcluded(dungeon, character)) setActiveCell({ dungeon, character });
+      if (!isMdExcluded(dungeon, character))
+        setActiveCell({ dungeon, character });
       onConsumeRecordTarget?.();
     } else if (activeDungeons.length > 0 && activeCharacters.length > 0) {
       // Data has finished loading (useMdDungeons/useCharacters resolve from
@@ -163,26 +169,33 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
     const isDone = latest !== null && !status.available;
 
     if (isDone && latest) {
-      // Items obtained via a PT分配 (MD進捗のドロップ記録でPT人数2+) were
-      // routed through addPartyObtain, not addStock — undo those via
-      // deletePartyObtain so both the inventory delta and the now-orphaned
-      // PT在庫一覧 entry are cleaned up together, not just the stock number.
-      const linkedPartyObtains = (partyObtains ?? []).filter(
-        (e) => e.sourceRunId === latest.id,
-      );
-      const coveredItemNames = new Set(
-        linkedPartyObtains.map((e) => e.itemName),
-      );
-      for (const entry of linkedPartyObtains) {
-        await deletePartyObtain(entry.id);
-      }
-      if (latest.items) {
-        for (const [name, qty] of Object.entries(latest.items)) {
-          if (coveredItemNames.has(name)) continue;
-          await removeStock(name, qty);
+      const cellKey = `${dungeon.id}:${character.id}`;
+      if (undoingCellKey === cellKey) return;
+      setUndoingCellKey(cellKey);
+      try {
+        // Items obtained via a PT分配 (MD進捗のドロップ記録でPT人数2+) were
+        // routed through addPartyObtain, not addStock — undo those via
+        // deletePartyObtain so both the inventory delta and the now-orphaned
+        // PT在庫一覧 entry are cleaned up together, not just the stock number.
+        const linkedPartyObtains = (partyObtains ?? []).filter(
+          (e) => e.sourceRunId === latest.id,
+        );
+        const coveredItemNames = new Set(
+          linkedPartyObtains.map((e) => e.itemName),
+        );
+        for (const entry of linkedPartyObtains) {
+          await deletePartyObtain(entry.id);
         }
+        if (latest.items) {
+          for (const [name, qty] of Object.entries(latest.items)) {
+            if (coveredItemNames.has(name)) continue;
+            await removeStock(name, qty);
+          }
+        }
+        await deleteRun(latest.id);
+      } finally {
+        setUndoingCellKey(null);
       }
-      await deleteRun(latest.id);
       return;
     }
     setActiveCell({ dungeon, character });
@@ -247,7 +260,12 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
       );
     }).length;
 
-    return { mobKillCounts, bestRecord, eligibleCount: eligible.length, doneCount };
+    return {
+      mobKillCounts,
+      bestRecord,
+      eligibleCount: eligible.length,
+      doneCount,
+    };
   }
 
   const dungeonStatsById = new Map(
@@ -290,8 +308,8 @@ export function MdGrid({ pendingRecordTarget, onConsumeRecordTarget }: Props) {
                 draggable={false}
               >
                 MVP討伐{" "}
-                {stats.mobKillCounts.reduce((sum, m) => sum + m.count, 0)}体
-                （{stats.mobKillCounts.length}種、ホバーで内訳）
+                {stats.mobKillCounts.reduce((sum, m) => sum + m.count, 0)}体 （
+                {stats.mobKillCounts.length}種、ホバーで内訳）
               </span>
             </>
           )}

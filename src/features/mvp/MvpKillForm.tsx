@@ -30,6 +30,7 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
   const [itemsDropped, setItemsDropped] = useState<string[]>([]);
   const [memo, setMemo] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const activeMvps = mvpMaster?.filter((m) => !m.archived) ?? [];
   const activeCharacters = characters?.filter((c) => !c.archived) ?? [];
@@ -85,6 +86,7 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const mvp = activeMvps.find((m) => m.name === mvpName);
     if (!mvp) {
       setError(
@@ -108,14 +110,19 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
       memo: memo.trim() || undefined,
     };
 
-    if (editingKill) {
-      await updateKill(editingKill.id, payload);
-      onDone();
-    } else {
-      await logKill(payload);
-      if (characterName)
-        localStorage.setItem(LAST_CHARACTER_KEY, characterName);
-      resetForm();
+    setSubmitting(true);
+    try {
+      if (editingKill) {
+        await updateKill(editingKill.id, payload);
+        onDone();
+      } else {
+        await logKill(payload);
+        if (characterName)
+          localStorage.setItem(LAST_CHARACTER_KEY, characterName);
+        resetForm();
+      }
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -211,11 +218,11 @@ export function MvpKillForm({ editingKill, onDone }: Props) {
       </label>
 
       <div className="form-actions">
-        <button type="submit">
+        <button type="submit" disabled={submitting}>
           {editingKill ? "更新する" : "今すぐ記録する"}
         </button>
         {editingKill && (
-          <button type="button" onClick={onDone}>
+          <button type="button" onClick={onDone} disabled={submitting}>
             キャンセル
           </button>
         )}

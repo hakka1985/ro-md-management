@@ -11,29 +11,36 @@ export function WishlistForm() {
   const [eventTag, setEventTag] = useState("");
   const [refineTarget, setRefineTarget] = useState("");
   const [sellPrice, setSellPrice] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const qty = Number(quantity);
     const cost = parseZeny(unitCost);
     if (!itemName.trim() || Number.isNaN(qty) || qty <= 0 || cost < 0) return;
-    await addItem({
-      itemName: itemName.trim(),
-      quantity: qty,
-      unitCost: cost,
-      memo: memo.trim(),
-      eventTag: eventTag.trim() || undefined,
-      refineTarget: refineTarget.trim() || undefined,
-      sellPrice: sellPrice.trim() ? parseZeny(sellPrice) : undefined,
-    });
-    setItemName("");
-    setQuantity("1");
-    setUnitCost("");
-    setMemo("");
-    setSellPrice("");
-    // イベント名・目標精錬値はあえてクリアしない（同じイベント向けに何十件も
-    // 続けて登録するのが実際の使い方で、精錬目標も揃っていることが多いため）。
-    // ただし仕入れ値上限と同様、想定売値はアイテムごとに違うのでクリアする。
+    setSubmitting(true);
+    try {
+      await addItem({
+        itemName: itemName.trim(),
+        quantity: qty,
+        unitCost: cost,
+        memo: memo.trim(),
+        eventTag: eventTag.trim() || undefined,
+        refineTarget: refineTarget.trim() || undefined,
+        sellPrice: sellPrice.trim() ? parseZeny(sellPrice) : undefined,
+      });
+      setItemName("");
+      setQuantity("1");
+      setUnitCost("");
+      setMemo("");
+      setSellPrice("");
+      // イベント名・目標精錬値はあえてクリアしない（同じイベント向けに何十件も
+      // 続けて登録するのが実際の使い方で、精錬目標も揃っていることが多いため）。
+      // ただし仕入れ値上限と同様、想定売値はアイテムごとに違うのでクリアする。
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -117,7 +124,9 @@ export function WishlistForm() {
       )}
 
       <div className="form-actions">
-        <button type="submit">追加する</button>
+        <button type="submit" disabled={submitting}>
+          追加する
+        </button>
       </div>
     </form>
   );

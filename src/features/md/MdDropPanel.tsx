@@ -61,6 +61,7 @@ export function MdDropPanel({
     ),
   );
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const party = Math.max(1, Number(partySize) || 1);
 
@@ -72,6 +73,7 @@ export function MdDropPanel({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     if (clearTime.trim() && parseClearTime(clearTime) === undefined) {
       setError("クリア時間は mm:ss（例: 12:34）の形式で入力してください。");
       return;
@@ -89,73 +91,86 @@ export function MdDropPanel({
       }
     }
 
-    const completedAt = Date.now();
-    const runId = await logRun({
-      characterId: character.id,
-      dungeonId: dungeon.id,
-      completedAt,
-      mvpDefeats,
-      clearTimeSeconds: parseClearTime(clearTime),
-      score: dungeon.tracksScore && scoreInput.trim() ? Number(scoreInput) : undefined,
-      rooms: dungeon.tracksRooms && roomsInput.trim() ? Number(roomsInput) : undefined,
-      items,
-      modeName: hasModes ? modeName : undefined,
-      estimatedCost: estimatedCostInput.trim()
-        ? parseZeny(estimatedCostInput)
-        : undefined,
-    });
-
-    // MD連動: a defeated MOB whose name matches an MVP master entry logs a kill
-    // automatically. Names are trimmed before comparing since MD MOB lists and
-    // the MVP master are edited independently and can pick up stray whitespace.
-    const mvpByName = new Map((mvpMaster ?? []).map((m) => [m.name.trim(), m]));
-    const unmatchedMvpNames: string[] = [];
-    for (const [mobName, defeated] of Object.entries(mvpDefeats)) {
-      if (!defeated) continue;
-      const trimmedName = mobName.trim();
-      const mvp = mvpByName.get(trimmedName);
-      if (!mvp) {
-        unmatchedMvpNames.push(trimmedName);
-        continue;
-      }
-      await logKill({
-        mvpId: mvp.id,
+    setSubmitting(true);
+    try {
+      const completedAt = Date.now();
+      const runId = await logRun({
         characterId: character.id,
-        killedAt: completedAt,
-        cardDropped: false,
+        dungeonId: dungeon.id,
+        completedAt,
+        mvpDefeats,
+        clearTimeSeconds: parseClearTime(clearTime),
+        score:
+          dungeon.tracksScore && scoreInput.trim()
+            ? Number(scoreInput)
+            : undefined,
+        rooms:
+          dungeon.tracksRooms && roomsInput.trim()
+            ? Number(roomsInput)
+            : undefined,
+        items,
+        modeName: hasModes ? modeName : undefined,
+        estimatedCost: estimatedCostInput.trim()
+          ? parseZeny(estimatedCostInput)
+          : undefined,
       });
-    }
 
-    const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
-    const newlyUnregistered: string[] = [];
-    const partyMembers = parseMemberNames(partyMembersInput);
-    for (const member of partyMembers) await addPartyMember(member);
-    for (const [name, qty] of Object.entries(items)) {
-      if (!knownNames.has(name)) {
-        await upsertItemPrice({ itemName: name, expectedPrice: 0 });
-        newlyUnregistered.push(name);
-      }
-      // PT分配の場合は addStock で直接足すのではなく、"PT在庫一覧" が集計
-      // する側の履歴として記録する（誰と何個ずつ分けたかをあとから振り返れる
-      // ように）。ソロ（PT人数1）は今まで通り在庫に直接加算するだけ。
-      if (party > 1) {
-        await addPartyObtain({
-          itemName: name,
-          totalQuantity: totalQuantities[name],
-          partySize: party,
-          members: partyMembers,
-          date: completedAt,
-          memo: `MD周回: ${dungeon.name}`,
-          sourceRunId: runId,
+      // MD連動: a defeated MOB whose name matches an MVP master entry logs a kill
+      // automatically. Names are trimmed before comparing since MD MOB lists and
+      // the MVP master are edited independently and can pick up stray whitespace.
+      const mvpByName = new Map(
+        (mvpMaster ?? []).map((m) => [m.name.trim(), m]),
+      );
+      const unmatchedMvpNames: string[] = [];
+      for (const [mobName, defeated] of Object.entries(mvpDefeats)) {
+        if (!defeated) continue;
+        const trimmedName = mobName.trim();
+        const mvp = mvpByName.get(trimmedName);
+        if (!mvp) {
+          unmatchedMvpNames.push(trimmedName);
+          continue;
+        }
+        await logKill({
+          mvpId: mvp.id,
+          characterId: character.id,
+          killedAt: completedAt,
+          cardDropped: false,
         });
-      } else {
-        await addStock(name, qty);
       }
-    }
 
-    onClose();
-    if (newlyUnregistered.length > 0) onUnregisteredItems(newlyUnregistered);
-    if (unmatchedMvpNames.length > 0) onUnregisteredMvps(unmatchedMvpNames);
+      const knownNames = new Set((itemPrices ?? []).map((p) => p.itemName));
+      const newlyUnregistered: string[] = [];
+      const partyMembers = parseMemberNames(partyMembersInput);
+      for (const member of partyMembers) await addPartyMember(member);
+      for (const [name, qty] of Object.entries(items)) {
+        if (!knownNames.has(name)) {
+          await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+          newlyUnregistered.push(name);
+        }
+        // PT分配の場合は addStock で直接足すのではなく、"PT在庫一覧" が集計
+        // する側の履歴として記録する（誰と何個ずつ分けたかをあとから振り返れる
+        // ように）。ソロ（PT人数1）は今まで通り在庫に直接加算するだけ。
+        if (party > 1) {
+          await addPartyObtain({
+            itemName: name,
+            totalQuantity: totalQuantities[name],
+            partySize: party,
+            members: partyMembers,
+            date: completedAt,
+            memo: `MD周回: ${dungeon.name}`,
+            sourceRunId: runId,
+          });
+        } else {
+          await addStock(name, qty);
+        }
+      }
+
+      onClose();
+      if (newlyUnregistered.length > 0) onUnregisteredItems(newlyUnregistered);
+      if (unmatchedMvpNames.length > 0) onUnregisteredMvps(unmatchedMvpNames);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -288,8 +303,10 @@ export function MdDropPanel({
         )}
 
         <div className="form-actions">
-          <button type="submit">記録する</button>
-          <button type="button" onClick={onClose}>
+          <button type="submit" disabled={submitting}>
+            記録する
+          </button>
+          <button type="button" onClick={onClose} disabled={submitting}>
             キャンセル
           </button>
         </div>

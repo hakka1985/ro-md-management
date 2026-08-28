@@ -22,6 +22,7 @@ function MvpDialog({ editing, onClose }: DialogProps) {
   );
   const [bulkText, setBulkText] = useState("");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   function updateDropItem(i: number, value: string) {
     setDropItems(dropItems.map((d, idx) => (idx === i ? value : d)));
@@ -42,6 +43,7 @@ function MvpDialog({ editing, onClose }: DialogProps) {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setError("");
     const cleanedName = name.trim();
     if (!cleanedName) return;
@@ -49,26 +51,31 @@ function MvpDialog({ editing, onClose }: DialogProps) {
       ...new Set(dropItems.map((d) => d.trim()).filter(Boolean)),
     ];
 
-    if (editing) {
-      await updateMvp(editing.id, {
-        name: cleanedName,
-        cardName: cardName.trim() || undefined,
-        map: map.trim() || undefined,
-        dropItems: cleanedDropItems.length ? cleanedDropItems : undefined,
-      });
-      onClose();
-    } else {
-      const result = await addMvp({
-        name: cleanedName,
-        cardName: cardName.trim(),
-        map: map.trim(),
-        dropItems: cleanedDropItems,
-      });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+    setSubmitting(true);
+    try {
+      if (editing) {
+        await updateMvp(editing.id, {
+          name: cleanedName,
+          cardName: cardName.trim() || undefined,
+          map: map.trim() || undefined,
+          dropItems: cleanedDropItems.length ? cleanedDropItems : undefined,
+        });
+        onClose();
+      } else {
+        const result = await addMvp({
+          name: cleanedName,
+          cardName: cardName.trim(),
+          map: map.trim(),
+          dropItems: cleanedDropItems,
+        });
+        if (!result.ok) {
+          setError(result.error);
+          return;
+        }
+        onClose();
       }
-      onClose();
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -130,8 +137,10 @@ function MvpDialog({ editing, onClose }: DialogProps) {
       </div>
 
       <div className="form-actions">
-        <button type="submit">{editing ? "保存する" : "登録する"}</button>
-        <button type="button" onClick={onClose}>
+        <button type="submit" disabled={submitting}>
+          {editing ? "保存する" : "登録する"}
+        </button>
+        <button type="button" onClick={onClose} disabled={submitting}>
           キャンセル
         </button>
       </div>

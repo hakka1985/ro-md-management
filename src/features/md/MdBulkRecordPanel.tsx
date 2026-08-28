@@ -38,9 +38,9 @@ export function MdBulkRecordPanel({
   const activeCharacters = characters.filter((c) => !c.archived);
 
   const [dungeonName, setDungeonName] = useState("");
-  const [selectedCharacterIds, setSelectedCharacterIds] = useState<
-    Set<string>
-  >(new Set());
+  const [selectedCharacterIds, setSelectedCharacterIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [modeName, setModeName] = useState("");
   const [mvpDefeats, setMvpDefeats] = useState<Record<string, boolean>>({});
   const [clearTime, setClearTime] = useState("");
@@ -50,6 +50,7 @@ export function MdBulkRecordPanel({
   const [estimatedCostInput, setEstimatedCostInput] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const dungeon = activeDungeons.find((d) => d.name === dungeonName) ?? null;
   const hasModes = (dungeon?.modes?.length ?? 0) > 0;
@@ -106,6 +107,7 @@ export function MdBulkRecordPanel({
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setError("");
     if (!dungeon) {
       setError("MDを選択してください。");
@@ -134,60 +136,65 @@ export function MdBulkRecordPanel({
     const rooms =
       dungeon.tracksRooms && roomsInput.trim() ? Number(roomsInput) : undefined;
 
-    const mvpByName = new Map(
-      (mvpMaster ?? []).map((m) => [m.name.trim(), m]),
-    );
+    const mvpByName = new Map((mvpMaster ?? []).map((m) => [m.name.trim(), m]));
     const unmatchedMvpNames = new Set<string>();
     const knownItemNames = new Set((itemPrices ?? []).map((p) => p.itemName));
     const newlyUnregistered = new Set<string>();
 
-    for (const characterId of selectedCharacterIds) {
-      const completedAt = Date.now();
-      await logRun({
-        characterId,
-        dungeonId: dungeon.id,
-        completedAt,
-        mvpDefeats,
-        clearTimeSeconds,
-        score,
-        rooms,
-        items,
-        modeName: hasModes ? modeName : undefined,
-        estimatedCost,
-      });
-
-      for (const [mobName, defeated] of Object.entries(mvpDefeats)) {
-        if (!defeated) continue;
-        const trimmedName = mobName.trim();
-        const mvp = mvpByName.get(trimmedName);
-        if (!mvp) {
-          unmatchedMvpNames.add(trimmedName);
-          continue;
-        }
-        await logKill({
-          mvpId: mvp.id,
+    setSubmitting(true);
+    try {
+      for (const characterId of selectedCharacterIds) {
+        const completedAt = Date.now();
+        await logRun({
           characterId,
-          killedAt: completedAt,
-          cardDropped: false,
+          dungeonId: dungeon.id,
+          completedAt,
+          mvpDefeats,
+          clearTimeSeconds,
+          score,
+          rooms,
+          items,
+          modeName: hasModes ? modeName : undefined,
+          estimatedCost,
         });
-      }
 
-      for (const [name, qty] of Object.entries(items)) {
-        if (!knownItemNames.has(name)) {
-          await upsertItemPrice({ itemName: name, expectedPrice: 0 });
-          knownItemNames.add(name);
-          newlyUnregistered.add(name);
+        for (const [mobName, defeated] of Object.entries(mvpDefeats)) {
+          if (!defeated) continue;
+          const trimmedName = mobName.trim();
+          const mvp = mvpByName.get(trimmedName);
+          if (!mvp) {
+            unmatchedMvpNames.add(trimmedName);
+            continue;
+          }
+          await logKill({
+            mvpId: mvp.id,
+            characterId,
+            killedAt: completedAt,
+            cardDropped: false,
+          });
         }
-        await addStock(name, qty);
-      }
-    }
 
-    setMessage(
-      `${selectedCharacterIds.size}人分の周回を記録しました（${dungeon.name}）。`,
-    );
-    setSelectedCharacterIds(new Set());
-    if (newlyUnregistered.size > 0) onUnregisteredItems([...newlyUnregistered]);
-    if (unmatchedMvpNames.size > 0) onUnregisteredMvps([...unmatchedMvpNames]);
+        for (const [name, qty] of Object.entries(items)) {
+          if (!knownItemNames.has(name)) {
+            await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+            knownItemNames.add(name);
+            newlyUnregistered.add(name);
+          }
+          await addStock(name, qty);
+        }
+      }
+
+      setMessage(
+        `${selectedCharacterIds.size}人分の周回を記録しました（${dungeon.name}）。`,
+      );
+      setSelectedCharacterIds(new Set());
+      if (newlyUnregistered.size > 0)
+        onUnregisteredItems([...newlyUnregistered]);
+      if (unmatchedMvpNames.size > 0)
+        onUnregisteredMvps([...unmatchedMvpNames]);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -235,7 +242,8 @@ export function MdBulkRecordPanel({
           <div className="stacked-form" style={{ gap: "0.3rem" }}>
             <div className="inline-form" style={{ marginBottom: 0 }}>
               <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-                対象キャラ（{selectedCharacterIds.size}/{eligibleCharacters.length}人選択中）
+                対象キャラ（{selectedCharacterIds.size}/
+                {eligibleCharacters.length}人選択中）
               </span>
               <button type="button" onClick={toggleSelectAll}>
                 {selectedCharacterIds.size === eligibleCharacters.length
@@ -331,10 +339,10 @@ export function MdBulkRecordPanel({
       )}
 
       <div className="form-actions">
-        <button type="submit" disabled={!dungeon}>
+        <button type="submit" disabled={!dungeon || submitting}>
           まとめて記録する
         </button>
-        <button type="button" onClick={onClose}>
+        <button type="button" onClick={onClose} disabled={submitting}>
           閉じる
         </button>
       </div>

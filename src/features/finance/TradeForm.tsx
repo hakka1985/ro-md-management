@@ -34,12 +34,14 @@ export function TradeForm() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [unregisteredNames, setUnregisteredNames] = useState<string[]>([]);
+  const [submitting, setSubmitting] = useState(false);
 
   const activeItems = itemPrices?.filter((p) => !p.archived) ?? [];
   const inStock = inventory?.filter((i) => i.quantity > 0) ?? [];
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     setError("");
     const name = itemName.trim();
     const qty = Number(quantity);
@@ -56,120 +58,125 @@ export function TradeForm() {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    if (kind === "sell") {
-      // Stock isn't required — this also covers equipment/items the user
-      // already owned before tracking inventory here. If there's matching
-      // stock it's decremented (clamped at 0); if not, the sale is still
-      // recorded as income with nothing to subtract.
-      const stock = inStock.find((i) => i.itemName === name);
-      const recordedUnitPrice = Math.floor(unitPrice / party);
-      const amount = qty * recordedUnitPrice;
-      if (stock) await removeStock(name, qty);
-      if (!activeItems.some((p) => p.itemName === name)) {
-        await upsertItemPrice({ itemName: name, expectedPrice: 0 });
-        setUnregisteredNames((prev) => [...prev, name]);
-      }
-      const saleDate = Date.now();
-      await addTransaction({
-        type: "income" as FinanceType,
-        itemName: name,
-        quantity: qty,
-        unitPrice: recordedUnitPrice,
-        amount,
-        date: saleDate,
-        source: "market",
-        partySize: party,
-        isEventIncome,
-        tags,
-      });
-      // The seller (this account) holds the full sale amount at first, so
-      // each named member's share is money owed *to* them, not yet handed
-      // over — "borrowed" (負債) so it reduces total assets until repaid,
-      // mirroring "this cash isn't fully mine yet."
-      const partyMembers = parseMemberNames(partyMembersInput);
-      for (const member of partyMembers) {
-        // Free-typed names not already in the PT member master are
-        // registered automatically — addPartyMember no-ops for a name
-        // that's already there, so this is safe to call every time.
-        await addPartyMember(member);
-        await addDebt({
-          direction: "borrowed",
-          counterparty: member,
+    setSubmitting(true);
+    try {
+      if (kind === "sell") {
+        // Stock isn't required — this also covers equipment/items the user
+        // already owned before tracking inventory here. If there's matching
+        // stock it's decremented (clamped at 0); if not, the sale is still
+        // recorded as income with nothing to subtract.
+        const stock = inStock.find((i) => i.itemName === name);
+        const recordedUnitPrice = Math.floor(unitPrice / party);
+        const amount = qty * recordedUnitPrice;
+        if (stock) await removeStock(name, qty);
+        if (!activeItems.some((p) => p.itemName === name)) {
+          await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+          setUnregisteredNames((prev) => [...prev, name]);
+        }
+        const saleDate = Date.now();
+        await addTransaction({
+          type: "income" as FinanceType,
+          itemName: name,
+          quantity: qty,
+          unitPrice: recordedUnitPrice,
           amount,
           date: saleDate,
-          memo: `PT分配（${name} 売却分）`,
-        });
-      }
-      setMessage(
-        party > 1
-          ? `売却を記録しました（PT${party}人で分配、記録額 ${formatZ(amount)}）。${partyMembers.length > 0 ? `${partyMembers.join("・")}への分配分（各${formatZ(amount)}）を「貸し借り」に記録しました。` : ""}`
-          : `売却を記録しました（${formatZ(amount)}）。`,
-      );
-    } else if (kind === "buy") {
-      const amount = qty * unitPrice;
-      if (!activeItems.some((p) => p.itemName === name)) {
-        await upsertItemPrice({ itemName: name, expectedPrice: 0 });
-        setUnregisteredNames((prev) => [...prev, name]);
-      }
-      await addStock(name, qty);
-      await addTransaction({
-        type: "expense" as FinanceType,
-        itemName: name,
-        quantity: qty,
-        unitPrice,
-        amount,
-        date: Date.now(),
-        source: "market",
-        tags,
-      });
-      setMessage(`購入を記録しました（${formatZ(amount)}、在庫に追加）。`);
-    } else if (kind === "obtain") {
-      // obtain: free items (event drops, giveaways, etc.) — stock only, no
-      // transaction. Solo (party === 1) just bumps inventory directly; a
-      // PT-shared pickup instead goes through usePartyObtains, which keeps
-      // a real per-event history (item/total/party/members/myShare) that
-      // "PT在庫一覧" aggregates from, instead of blending untraceably into
-      // the plain stock counter.
-      if (!activeItems.some((p) => p.itemName === name)) {
-        await upsertItemPrice({ itemName: name, expectedPrice: 0 });
-        setUnregisteredNames((prev) => [...prev, name]);
-      }
-      if (party > 1) {
-        const members = parseMemberNames(partyMembersInput);
-        for (const member of members) await addPartyMember(member);
-        const myShare = await addPartyObtain({
-          itemName: name,
-          totalQuantity: qty,
+          source: "market",
           partySize: party,
-          members,
-          date: Date.now(),
+          isEventIncome,
+          tags,
         });
+        // The seller (this account) holds the full sale amount at first, so
+        // each named member's share is money owed *to* them, not yet handed
+        // over — "borrowed" (負債) so it reduces total assets until repaid,
+        // mirroring "this cash isn't fully mine yet."
+        const partyMembers = parseMemberNames(partyMembersInput);
+        for (const member of partyMembers) {
+          // Free-typed names not already in the PT member master are
+          // registered automatically — addPartyMember no-ops for a name
+          // that's already there, so this is safe to call every time.
+          await addPartyMember(member);
+          await addDebt({
+            direction: "borrowed",
+            counterparty: member,
+            amount,
+            date: saleDate,
+            memo: `PT分配（${name} 売却分）`,
+          });
+        }
         setMessage(
-          `入手を記録しました（PT${party}人で分配、自分の取り分 ${myShare}個を在庫に追加、取引記録には計上されません。「PT在庫一覧」に履歴が残ります）。`,
+          party > 1
+            ? `売却を記録しました（PT${party}人で分配、記録額 ${formatZ(amount)}）。${partyMembers.length > 0 ? `${partyMembers.join("・")}への分配分（各${formatZ(amount)}）を「貸し借り」に記録しました。` : ""}`
+            : `売却を記録しました（${formatZ(amount)}）。`,
         );
-      } else {
+      } else if (kind === "buy") {
+        const amount = qty * unitPrice;
+        if (!activeItems.some((p) => p.itemName === name)) {
+          await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+          setUnregisteredNames((prev) => [...prev, name]);
+        }
         await addStock(name, qty);
+        await addTransaction({
+          type: "expense" as FinanceType,
+          itemName: name,
+          quantity: qty,
+          unitPrice,
+          amount,
+          date: Date.now(),
+          source: "market",
+          tags,
+        });
+        setMessage(`購入を記録しました（${formatZ(amount)}、在庫に追加）。`);
+      } else if (kind === "obtain") {
+        // obtain: free items (event drops, giveaways, etc.) — stock only, no
+        // transaction. Solo (party === 1) just bumps inventory directly; a
+        // PT-shared pickup instead goes through usePartyObtains, which keeps
+        // a real per-event history (item/total/party/members/myShare) that
+        // "PT在庫一覧" aggregates from, instead of blending untraceably into
+        // the plain stock counter.
+        if (!activeItems.some((p) => p.itemName === name)) {
+          await upsertItemPrice({ itemName: name, expectedPrice: 0 });
+          setUnregisteredNames((prev) => [...prev, name]);
+        }
+        if (party > 1) {
+          const members = parseMemberNames(partyMembersInput);
+          for (const member of members) await addPartyMember(member);
+          const myShare = await addPartyObtain({
+            itemName: name,
+            totalQuantity: qty,
+            partySize: party,
+            members,
+            date: Date.now(),
+          });
+          setMessage(
+            `入手を記録しました（PT${party}人で分配、自分の取り分 ${myShare}個を在庫に追加、取引記録には計上されません。「PT在庫一覧」に履歴が残ります）。`,
+          );
+        } else {
+          await addStock(name, qty);
+          setMessage(
+            `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
+          );
+        }
+      } else {
+        // consume: used the item yourself (potion, enchant material, food buff,
+        // etc.) — stock only decreases, no transaction, since this isn't a
+        // sale or a loss of money, just spending an asset you already had.
+        await removeStock(name, qty);
         setMessage(
-          `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
+          `消費を記録しました（在庫から${qty}個減らしました、取引記録には計上されません）。`,
         );
       }
-    } else {
-      // consume: used the item yourself (potion, enchant material, food buff,
-      // etc.) — stock only decreases, no transaction, since this isn't a
-      // sale or a loss of money, just spending an asset you already had.
-      await removeStock(name, qty);
-      setMessage(
-        `消費を記録しました（在庫から${qty}個減らしました、取引記録には計上されません）。`,
-      );
-    }
 
-    setItemName("");
-    setQuantity("1");
-    setUnitPriceInput("");
-    setPartySize("1");
-    setPartyMembersInput("");
-    setIsEventIncome(false);
-    setTagsInput("");
+      setItemName("");
+      setQuantity("1");
+      setUnitPriceInput("");
+      setPartySize("1");
+      setPartyMembersInput("");
+      setIsEventIncome(false);
+      setTagsInput("");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -338,7 +345,9 @@ export function TradeForm() {
         )}
 
         <div className="form-actions">
-          <button type="submit">取引を記録する</button>
+          <button type="submit" disabled={submitting}>
+            取引を記録する
+          </button>
         </div>
       </form>
       <UnregisteredItemPrompt

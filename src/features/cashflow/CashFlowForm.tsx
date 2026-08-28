@@ -12,25 +12,32 @@ export function CashFlowForm() {
   const [quantity, setQuantity] = useState("1");
   const [unitPriceInput, setUnitPriceInput] = useState("");
   const [memo, setMemo] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const activeItems = itemPrices?.filter((p) => !p.archived) ?? [];
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     const qty = Number(quantity);
     const unitPrice = parseZeny(unitPriceInput);
     if (!itemName.trim() || Number.isNaN(qty) || qty <= 0) return;
-    await addEntry({
-      kind,
-      itemName: itemName.trim(),
-      quantity: qty,
-      unitPrice,
-      memo: memo.trim(),
-    });
-    setItemName("");
-    setQuantity("1");
-    setUnitPriceInput("");
-    setMemo("");
+    setSubmitting(true);
+    try {
+      await addEntry({
+        kind,
+        itemName: itemName.trim(),
+        quantity: qty,
+        unitPrice,
+        memo: memo.trim(),
+      });
+      setItemName("");
+      setQuantity("1");
+      setUnitPriceInput("");
+      setMemo("");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -96,7 +103,9 @@ export function CashFlowForm() {
       </label>
 
       <div className="form-actions">
-        <button type="submit">予定に追加する</button>
+        <button type="submit" disabled={submitting}>
+          予定に追加する
+        </button>
       </div>
     </form>
   );

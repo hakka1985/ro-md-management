@@ -56,6 +56,7 @@ export function CharacterSettings() {
   const [jobLevel, setJobLevel] = useState("");
   const [job, setJob] = useState("");
   const [money, setMoney] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const knownServers = [
     ...new Set((characters ?? []).map((c) => c.server).filter(Boolean)),
@@ -102,27 +103,33 @@ export function CharacterSettings() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (submitting) return;
     if (!name.trim() || !server.trim()) return;
     const lv = Number(level);
     const jlv = Number(jobLevel);
-    await addCharacter({
-      name: name.trim(),
-      server: server.trim(),
-      account: account.trim() || undefined,
-      job: job.trim(),
-      level: level.trim() && !Number.isNaN(lv) ? lv : undefined,
-      jobLevel: jobLevel.trim() && !Number.isNaN(jlv) ? jlv : undefined,
-      money: money.trim() ? parseZeny(money) : undefined,
-    });
-    setName("");
-    setServer("");
-    setServerIsNew(false);
-    setAccount("");
-    setAccountIsNew(false);
-    setLevel("");
-    setJobLevel("");
-    setJob("");
-    setMoney("");
+    setSubmitting(true);
+    try {
+      await addCharacter({
+        name: name.trim(),
+        server: server.trim(),
+        account: account.trim() || undefined,
+        job: job.trim(),
+        level: level.trim() && !Number.isNaN(lv) ? lv : undefined,
+        jobLevel: jobLevel.trim() && !Number.isNaN(jlv) ? jlv : undefined,
+        money: money.trim() ? parseZeny(money) : undefined,
+      });
+      setName("");
+      setServer("");
+      setServerIsNew(false);
+      setAccount("");
+      setAccountIsNew(false);
+      setLevel("");
+      setJobLevel("");
+      setJob("");
+      setMoney("");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function handleMoneyBlur(id: string, value: string) {
@@ -229,10 +236,7 @@ export function CharacterSettings() {
           />
         )}
         {knownAccounts.length > 0 && accountIsNew && (
-          <button
-            type="button"
-            onClick={() => handleAccountSelectChange("")}
-          >
+          <button type="button" onClick={() => handleAccountSelectChange("")}>
             既存から選ぶ
           </button>
         )}
@@ -263,7 +267,9 @@ export function CharacterSettings() {
           onChange={(e) => setMoney(e.target.value)}
           style={{ width: "9rem" }}
         />
-        <button type="submit">追加</button>
+        <button type="submit" disabled={submitting}>
+          追加
+        </button>
       </form>
 
       <input
@@ -349,7 +355,9 @@ export function CharacterSettings() {
                     type="button"
                     className={c.pinned ? "pin-button pinned" : "pin-button"}
                     onClick={() => togglePinned(c.id, !c.pinned)}
-                    title={c.pinned ? "ピン留めを解除" : "ピン留めして上位固定表示"}
+                    title={
+                      c.pinned ? "ピン留めを解除" : "ピン留めして上位固定表示"
+                    }
                     draggable={false}
                   >
                     {c.pinned ? "★" : "☆"}
