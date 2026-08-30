@@ -259,7 +259,19 @@ export function getAvailableMdTasksGrouped(
         now,
         dungeon.attemptsPerCycle ?? 1,
       );
-      if (status.available) eligible.push({ id: character.id, name: character.name });
+      if (!status.available) continue;
+      // Own CT is open, but if the account already spent its shared
+      // per-cycle character cap on other characters, this character can't
+      // actually go either — same rule the MD grid enforces per cell.
+      const limit = dungeon.accountCharacterLimit;
+      if (
+        limit !== undefined &&
+        character.account &&
+        getAccountRunCount(characters, runs, dungeon, character) >= limit
+      ) {
+        continue;
+      }
+      eligible.push({ id: character.id, name: character.name });
     }
     if (eligible.length > 0) {
       groups.push({ dungeonId: dungeon.id, dungeonName: dungeon.name, characters: eligible });

@@ -196,11 +196,17 @@ export function DashboardPage({ onRecordCharacter }: Props) {
       setItemTrendSortDir("asc");
     }
   }
-  const itemTrendRowsAll = getItemPeriodTrend(runs, trendView).filter(
-    (r) => r.thisPeriodQty > 0 || r.lastPeriodQty > 0,
-  );
+  const itemTrendRowsAll = getItemPeriodTrend(
+    runs,
+    trendView,
+    itemPrices,
+  ).filter((r) => r.thisPeriodQty > 0 || r.lastPeriodQty > 0);
   const itemTrendRowsFiltered = itemTrendRowsAll.filter((r) =>
     r.itemName.toLowerCase().includes(itemTrendSearch.trim().toLowerCase()),
+  );
+  const itemTrendTotalValue = itemTrendRowsFiltered.reduce(
+    (sum, r) => sum + r.thisPeriodValue,
+    0,
   );
   // Default view (no column clicked yet) surfaces this period's biggest
   // hauls first — biggest movers are more useful to see up front than an
@@ -222,6 +228,8 @@ export function DashboardPage({ onRecordCharacter }: Props) {
           return r.lastPeriodQty;
         case "pctChange":
           return r.pctChange ?? -Infinity;
+        case "thisPeriodValue":
+          return r.thisPeriodValue;
         default:
           return "";
       }
@@ -838,6 +846,14 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                       dir={itemTrendSortDir}
                       onSort={toggleItemTrendSort}
                     />
+                    <SortableHeader
+                      label={trendView === "week" ? "今週の金額" : "今月の金額"}
+                      sortKey="thisPeriodValue"
+                      activeKey={itemTrendSortKey}
+                      dir={itemTrendSortDir}
+                      onSort={toggleItemTrendSort}
+                    />
+                    <th>占有率</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -860,11 +876,17 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                           </span>
                         )}
                       </td>
+                      <td>{formatZ(r.thisPeriodValue)}</td>
+                      <td>
+                        {itemTrendTotalValue > 0
+                          ? `${((r.thisPeriodValue / itemTrendTotalValue) * 100).toFixed(0)}%`
+                          : "—"}
+                      </td>
                     </tr>
                   ))}
                   {itemTrendRows.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="empty">
+                      <td colSpan={6} className="empty">
                         一致するアイテムがありません
                       </td>
                     </tr>

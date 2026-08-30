@@ -250,14 +250,17 @@ export interface ItemPeriodTrend {
   thisPeriodQty: number;
   lastPeriodQty: number;
   pctChange: number | null;
+  thisPeriodValue: number;
 }
 
-/** Per-item period-over-period acquisition-count trend, aggregated across all MD runs' recorded drops (each run's items are already the player's own share, not the party total). */
+/** Per-item period-over-period acquisition-count trend, aggregated across all MD runs' recorded drops (each run's items are already the player's own share, not the party total). `thisPeriodValue` is the current period's quantity priced at each item's `expectedPrice` (unpriced items value at 0), so the table can show which items account for the most money, not just the most pieces. */
 export function getItemPeriodTrend(
   runs: MdRun[],
   granularity: TrendGranularity,
+  prices: ItemPrice[],
   now: number = Date.now(),
 ): ItemPeriodTrend[] {
+  const priceByName = new Map(prices.map((p) => [p.itemName, p.expectedPrice]));
   const { thisStart, lastStart } = trendPeriodBounds(granularity, now);
   const byItem = new Map<string, { thisQty: number; lastQty: number }>();
 
@@ -277,6 +280,7 @@ export function getItemPeriodTrend(
     thisPeriodQty: e.thisQty,
     lastPeriodQty: e.lastQty,
     pctChange: pctChangeOf(e.thisQty, e.lastQty),
+    thisPeriodValue: e.thisQty * (priceByName.get(itemName) ?? 0),
   }));
 }
 
