@@ -5,6 +5,7 @@ import type {
   FinanceTransaction,
   InventoryItem,
   ItemPrice,
+  MdDungeon,
   MdRun,
 } from "../db/types";
 import { isNServerCharacter } from "./zeny";
@@ -245,12 +246,20 @@ export function getMdPeriodTrend(
   }));
 }
 
+export interface ItemSourceBreakdown {
+  dungeonId: string;
+  dungeonName: string;
+  qty: number;
+}
+
 export interface ItemPeriodTrend {
   itemName: string;
   thisPeriodQty: number;
   lastPeriodQty: number;
   pctChange: number | null;
   thisPeriodValue: number;
+  /** Which MDs this period's thisPeriodQty came from, most first — powers a per-item "どこ産か" breakdown in the UI. */
+  sources: ItemSourceBreakdown[];
 }
 
 /** Per-item period-over-period acquisition-count trend, aggregated across all MD runs' recorded drops (each run's items are already the player's own share, not the party total). `thisPeriodValue` is the current period's quantity priced at each item's `expectedPrice` (unpriced items value at 0), so the table can show which items account for the most money, not just the most pieces. */
@@ -258,19 +267,35 @@ export function getItemPeriodTrend(
   runs: MdRun[],
   granularity: TrendGranularity,
   prices: ItemPrice[],
+  dungeons: MdDungeon[],
   now: number = Date.now(),
 ): ItemPeriodTrend[] {
   const priceByName = new Map(prices.map((p) => [p.itemName, p.expectedPrice]));
+  const dungeonNameById = new Map(dungeons.map((d) => [d.id, d.name]));
   const { thisStart, lastStart } = trendPeriodBounds(granularity, now);
-  const byItem = new Map<string, { thisQty: number; lastQty: number }>();
+  const byItem = new Map<
+    string,
+    { thisQty: number; lastQty: number; sourceQty: Map<string, number> }
+  >();
 
   for (const run of runs) {
     if (run.completedAt < lastStart || !run.items) continue;
     const isThisPeriod = run.completedAt >= thisStart;
     for (const [name, qty] of Object.entries(run.items)) {
-      const entry = byItem.get(name) ?? { thisQty: 0, lastQty: 0 };
-      if (isThisPeriod) entry.thisQty += qty;
-      else entry.lastQty += qty;
+      const entry = byItem.get(name) ?? {
+        thisQty: 0,
+        lastQty: 0,
+        sourceQty: new Map<string, number>(),
+      };
+      if (isThisPeriod) {
+        entry.thisQty += qty;
+        entry.sourceQty.set(
+          run.dungeonId,
+          (entry.sourceQty.get(run.dungeonId) ?? 0) + qty,
+        );
+      } else {
+        entry.lastQty += qty;
+      }
       byItem.set(name, entry);
     }
   }
@@ -281,6 +306,13 @@ export function getItemPeriodTrend(
     lastPeriodQty: e.lastQty,
     pctChange: pctChangeOf(e.thisQty, e.lastQty),
     thisPeriodValue: e.thisQty * (priceByName.get(itemName) ?? 0),
+    sources: [...e.sourceQty.entries()]
+      .map(([dungeonId, qty]) => ({
+        dungeonId,
+        dungeonName: dungeonNameById.get(dungeonId) ?? "不明なMD",
+        qty,
+      }))
+      .sort((a, b) => b.qty - a.qty),
   }));
 }
 

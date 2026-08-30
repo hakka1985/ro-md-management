@@ -946,6 +946,25 @@ dialog.modal::backdrop {
   white-space: nowrap;
 }
 
+.item-trend-row {
+  cursor: pointer;
+}
+
+.item-trend-toggle {
+  display: inline-block;
+  width: 1em;
+  color: var(--text-muted);
+}
+
+.scrollable-table .item-trend-detail {
+  background: var(--bg);
+  white-space: normal;
+}
+
+.item-trend-detail .entity-list {
+  margin: 0.25rem 0;
+}
+
 .md-master-sticky-col {
   position: sticky;
   left: 0;

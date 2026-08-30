@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useMdDungeons, useMdRuns } from "../md/useMd";
 import {
   getAvailableMdTasksGrouped,
@@ -90,6 +90,9 @@ export function DashboardPage({ onRecordCharacter }: Props) {
   const [itemTrendSearch, setItemTrendSearch] = useState("");
   const [itemTrendSortKey, setItemTrendSortKey] = useState<string | null>(null);
   const [itemTrendSortDir, setItemTrendSortDir] = useState<SortDir>("asc");
+  const [expandedTrendItems, setExpandedTrendItems] = useState<Set<string>>(
+    new Set(),
+  );
 
   if (
     !dungeons ||
@@ -196,10 +199,19 @@ export function DashboardPage({ onRecordCharacter }: Props) {
       setItemTrendSortDir("asc");
     }
   }
+  function toggleTrendItemExpanded(itemName: string) {
+    setExpandedTrendItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(itemName)) next.delete(itemName);
+      else next.add(itemName);
+      return next;
+    });
+  }
   const itemTrendRowsAll = getItemPeriodTrend(
     runs,
     trendView,
     itemPrices,
+    dungeons,
   ).filter((r) => r.thisPeriodQty > 0 || r.lastPeriodQty > 0);
   const itemTrendRowsFiltered = itemTrendRowsAll.filter((r) =>
     r.itemName.toLowerCase().includes(itemTrendSearch.trim().toLowerCase()),
@@ -857,33 +869,72 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                   </tr>
                 </thead>
                 <tbody>
-                  {itemTrendRows.map((r) => (
-                    <tr key={r.itemName}>
-                      <td style={{ textAlign: "left" }}>{r.itemName}</td>
-                      <td>{r.thisPeriodQty}</td>
-                      <td>{r.lastPeriodQty}</td>
-                      <td>
-                        {r.pctChange === null ? (
-                          "—"
-                        ) : (
-                          <span
-                            className={
-                              r.pctChange >= 0 ? "trend-up" : "trend-down"
-                            }
-                          >
-                            {r.pctChange >= 0 ? "▲" : "▼"}
-                            {Math.abs(r.pctChange).toFixed(0)}%
-                          </span>
+                  {itemTrendRows.map((r) => {
+                    const isExpanded = expandedTrendItems.has(r.itemName);
+                    return (
+                      <Fragment key={r.itemName}>
+                        <tr
+                          className="item-trend-row"
+                          onClick={() => toggleTrendItemExpanded(r.itemName)}
+                          title="クリックで入手元MDの内訳を表示"
+                        >
+                          <td style={{ textAlign: "left" }}>
+                            <span className="item-trend-toggle">
+                              {isExpanded ? "▼" : "▶"}
+                            </span>{" "}
+                            {r.itemName}
+                          </td>
+                          <td>{r.thisPeriodQty}</td>
+                          <td>{r.lastPeriodQty}</td>
+                          <td>
+                            {r.pctChange === null ? (
+                              "—"
+                            ) : (
+                              <span
+                                className={
+                                  r.pctChange >= 0 ? "trend-up" : "trend-down"
+                                }
+                              >
+                                {r.pctChange >= 0 ? "▲" : "▼"}
+                                {Math.abs(r.pctChange).toFixed(0)}%
+                              </span>
+                            )}
+                          </td>
+                          <td>{formatZ(r.thisPeriodValue)}</td>
+                          <td>
+                            {itemTrendTotalValue > 0
+                              ? `${((r.thisPeriodValue / itemTrendTotalValue) * 100).toFixed(0)}%`
+                              : "—"}
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={6} className="item-trend-detail">
+                              {r.sources.length === 0 ? (
+                                <span className="hint">
+                                  {trendView === "week" ? "今週" : "今月"}
+                                  の入手元記録がありません
+                                </span>
+                              ) : (
+                                <ul className="entity-list">
+                                  {r.sources.map((s) => (
+                                    <li key={s.dungeonId}>
+                                      <span className="entity-list-main">
+                                        {s.dungeonName}
+                                        <span className="entity-list-sub">
+                                          {s.qty}個
+                                        </span>
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </td>
+                          </tr>
                         )}
-                      </td>
-                      <td>{formatZ(r.thisPeriodValue)}</td>
-                      <td>
-                        {itemTrendTotalValue > 0
-                          ? `${((r.thisPeriodValue / itemTrendTotalValue) * 100).toFixed(0)}%`
-                          : "—"}
-                      </td>
-                    </tr>
-                  ))}
+                      </Fragment>
+                    );
+                  })}
                   {itemTrendRows.length === 0 && (
                     <tr>
                       <td colSpan={6} className="empty">
