@@ -157,11 +157,19 @@ export function DashboardPage({ onRecordCharacter }: Props) {
   const periodTrendByDungeon = new Map(
     getMdPeriodTrend(runs, itemPrices, trendView).map((t) => [t.dungeonId, t]),
   );
-  const efficiencyRowsAll = efficiency.map((e) => ({
-    ...e,
-    dungeonName: dungeonNameById.get(e.dungeonId) ?? "（不明なMD）",
-    trend: periodTrendByDungeon.get(e.dungeonId) ?? null,
-  }));
+  const efficiencyRowsAll = efficiency.map((e) => {
+    const trend = periodTrendByDungeon.get(e.dungeonId) ?? null;
+    const periodRunCount = trend?.thisPeriodRuns ?? 0;
+    const periodValue = trend?.thisPeriodValue ?? 0;
+    return {
+      ...e,
+      dungeonName: dungeonNameById.get(e.dungeonId) ?? "（不明なMD）",
+      trend,
+      periodRunCount,
+      periodValue,
+      periodAvgValue: periodRunCount > 0 ? periodValue / periodRunCount : 0,
+    };
+  });
   const efficiencyRowsFiltered = efficiencyRowsAll.filter((e) =>
     e.dungeonName.toLowerCase().includes(efficiencySearch.trim().toLowerCase()),
   );
@@ -179,6 +187,12 @@ export function DashboardPage({ onRecordCharacter }: Props) {
           return r.totalValue;
         case "avgValue":
           return r.avgValue;
+        case "periodRunCount":
+          return r.periodRunCount;
+        case "periodValue":
+          return r.periodValue;
+        case "periodAvgValue":
+          return r.periodAvgValue;
         case "hourlyRate":
           return r.hourlyRate ?? -1;
         case "netHourlyRate":
@@ -639,21 +653,42 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                       onSort={toggleEfficiencySort}
                     />
                     <SortableHeader
-                      label="実施回数"
+                      label={`実施回数（${trendView === "week" ? "今週" : "今月"}）`}
+                      sortKey="periodRunCount"
+                      activeKey={efficiencySortKey}
+                      dir={efficiencySortDir}
+                      onSort={toggleEfficiencySort}
+                    />
+                    <SortableHeader
+                      label="実施回数（累計）"
                       sortKey="runCount"
                       activeKey={efficiencySortKey}
                       dir={efficiencySortDir}
                       onSort={toggleEfficiencySort}
                     />
                     <SortableHeader
-                      label="獲得アイテム評価額合計"
+                      label={`獲得アイテム評価額（${trendView === "week" ? "今週" : "今月"}）`}
+                      sortKey="periodValue"
+                      activeKey={efficiencySortKey}
+                      dir={efficiencySortDir}
+                      onSort={toggleEfficiencySort}
+                    />
+                    <SortableHeader
+                      label="獲得アイテム評価額合計（累計）"
                       sortKey="totalValue"
                       activeKey={efficiencySortKey}
                       dir={efficiencySortDir}
                       onSort={toggleEfficiencySort}
                     />
                     <SortableHeader
-                      label="平均（z/回）"
+                      label={`平均（z/回・${trendView === "week" ? "今週" : "今月"}）`}
+                      sortKey="periodAvgValue"
+                      activeKey={efficiencySortKey}
+                      dir={efficiencySortDir}
+                      onSort={toggleEfficiencySort}
+                    />
+                    <SortableHeader
+                      label="平均（z/回・累計）"
                       sortKey="avgValue"
                       activeKey={efficiencySortKey}
                       dir={efficiencySortDir}
@@ -694,9 +729,20 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                   {efficiencyRows.map((e) => (
                     <tr key={e.dungeonId}>
                       <td>{e.dungeonName}</td>
+                      <td>{e.periodRunCount}回</td>
                       <td>{e.runCount}回</td>
+                      <td title={`${e.periodValue.toLocaleString()} z`}>
+                        {formatZ(e.periodValue)}
+                      </td>
                       <td title={`${e.totalValue.toLocaleString()} z`}>
                         {formatZ(e.totalValue)}
+                      </td>
+                      <td
+                        title={`${Math.round(e.periodAvgValue).toLocaleString()} z`}
+                      >
+                        {e.periodRunCount > 0
+                          ? formatZ(Math.round(e.periodAvgValue))
+                          : "—"}
                       </td>
                       <td
                         title={`${Math.round(e.avgValue).toLocaleString()} z`}
@@ -788,7 +834,7 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                   ))}
                   {efficiencyRows.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="empty">
+                      <td colSpan={12} className="empty">
                         一致するMDがありません
                       </td>
                     </tr>
