@@ -270,11 +270,20 @@ export function DashboardPage({ onRecordCharacter }: Props) {
     weeklyGoal > 0
       ? Math.min(100, (weeklyEstimatedTotal / weeklyGoal) * 100)
       : 0;
-  const weekOverWeekDelta =
-    weeklyNet.currentWeekNet - weeklyNet.previousWeekNet;
+  // 先週比 compares 実績＋推定 on both sides (not 実績 alone) — otherwise a
+  // week with lots of still-unsold MD drops looks artificially weak next to
+  // a week where old stock happened to get sold off.
+  const lastWeekMdEstimate = getWeeklyMdEstimatedValue(
+    trendRuns,
+    itemPrices,
+    Date.now() - 7 * 24 * 60 * 60 * 1000,
+  );
+  const previousWeekEstimatedTotal =
+    weeklyNet.previousWeekNet + lastWeekMdEstimate;
+  const weekOverWeekDelta = weeklyEstimatedTotal - previousWeekEstimatedTotal;
   const weekOverWeekPct = pctChangeOf(
-    weeklyNet.currentWeekNet,
-    weeklyNet.previousWeekNet,
+    weeklyEstimatedTotal,
+    previousWeekEstimatedTotal,
   );
 
   const availableTaskGroups = getAvailableMdTasksGrouped(
@@ -452,9 +461,8 @@ export function DashboardPage({ onRecordCharacter }: Props) {
             </p>
           )}
           <p>
-            先週比:{" "}
-            {weeklyNet.currentWeekNet === 0 &&
-            weeklyNet.previousWeekNet === 0 ? (
+            先週比（実績＋推定）:{" "}
+            {weeklyEstimatedTotal === 0 && previousWeekEstimatedTotal === 0 ? (
               <span className="hint">先週のデータがありません</span>
             ) : (
               <strong
@@ -464,9 +472,10 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                 title={`${weekOverWeekDelta.toLocaleString()} z`}
               >
                 {weekOverWeekDelta >= 0 ? "▲" : "▼"}
-                {/* previousWeekNet <= 0 (no data, or last week was a net
-                loss) makes a %-change meaningless — see pctChangeOf — so
-                just show the zeny delta without a percentage in that case. */}
+                {/* previousWeekEstimatedTotal <= 0 (no data, or last week
+                was a net loss) makes a %-change meaningless — see
+                pctChangeOf — so just show the zeny delta without a
+                percentage in that case. */}
                 {weekOverWeekPct !== null &&
                   `${Math.abs(weekOverWeekPct).toFixed(0)}%（`}
                 {weekOverWeekDelta >= 0 ? "+" : ""}
