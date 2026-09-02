@@ -13,7 +13,7 @@ import { UnregisteredItemPrompt } from "./UnregisteredItemPrompt";
 import { PartyMemberPicker } from "../../components/PartyMemberPicker";
 import type { FinanceType } from "../../db/types";
 
-type TradeKind = "sell" | "buy" | "obtain" | "consume";
+type TradeKind = "sell" | "buy" | "obtain" | "consume" | "money";
 
 export function TradeForm() {
   const { itemPrices, upsertItemPrice } = useItemPrices();
@@ -24,6 +24,7 @@ export function TradeForm() {
   const { addPartyMember } = usePartyMembers();
 
   const [kind, setKind] = useState<TradeKind>("sell");
+  const [moneyType, setMoneyType] = useState<FinanceType>("income");
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unitPriceInput, setUnitPriceInput] = useState("");
@@ -48,7 +49,12 @@ export function TradeForm() {
     const unitPrice = parseZeny(unitPriceInput);
     const party = Math.max(1, Number(partySize) || 1);
 
-    if (!name || Number.isNaN(qty) || qty <= 0) {
+    if (kind === "money") {
+      if (!name || unitPrice <= 0) {
+        setError("内容と金額を正しく入力してください。");
+        return;
+      }
+    } else if (!name || Number.isNaN(qty) || qty <= 0) {
       setError("アイテム名と個数を正しく入力してください。");
       return;
     }
@@ -157,13 +163,33 @@ export function TradeForm() {
             `入手を記録しました（${qty}個を在庫に追加、取引記録には計上されません）。`,
           );
         }
-      } else {
+      } else if (kind === "consume") {
         // consume: used the item yourself (potion, enchant material, food buff,
         // etc.) — stock only decreases, no transaction, since this isn't a
         // sale or a loss of money, just spending an asset you already had.
         await removeStock(name, qty);
         setMessage(
           `消費を記録しました（在庫から${qty}個減らしました、取引記録には計上されません）。`,
+        );
+      } else {
+        // money: a lump sum with no real item behind it (e.g. someone else
+        // settled a run and just handed over a split amount) — recorded
+        // straight as an "other"-source transaction, skipping the item
+        // price master and inventory entirely.
+        const amount = unitPrice;
+        await addTransaction({
+          type: moneyType,
+          itemName: name,
+          quantity: 1,
+          unitPrice: amount,
+          amount,
+          date: Date.now(),
+          source: "other",
+          isEventIncome: moneyType === "income" ? isEventIncome : undefined,
+          tags,
+        });
+        setMessage(
+          `${moneyType === "income" ? "入金" : "出金"}を記録しました（${formatZ(amount)}）。アイテムは登録されません。`,
         );
       }
 
@@ -218,14 +244,50 @@ export function TradeForm() {
           />
           消費（自己使用、在庫のみ減少）
         </label>
+        <label className="checkbox-label">
+          <input
+            type="radio"
+            checked={kind === "money"}
+            onChange={() => {
+              setKind("money");
+              setQuantity("1");
+            }}
+          />
+          入金/出金（アイテム登録なし）
+        </label>
+
+        {kind === "money" && (
+          <>
+            <label className="checkbox-label">
+              <input
+                type="radio"
+                checked={moneyType === "income"}
+                onChange={() => setMoneyType("income")}
+              />
+              入金 (+)
+            </label>
+            <label className="checkbox-label">
+              <input
+                type="radio"
+                checked={moneyType === "expense"}
+                onChange={() => setMoneyType("expense")}
+              />
+              出金 (-)
+            </label>
+          </>
+        )}
 
         <label>
-          アイテム名
+          {kind === "money"
+            ? "内容（自由記述、例: MD精算・分配金）"
+            : "アイテム名"}
           <input
             list={
-              kind === "sell" || kind === "consume"
-                ? "trade-sell-options"
-                : "trade-item-options"
+              kind === "money"
+                ? undefined
+                : kind === "sell" || kind === "consume"
+                  ? "trade-sell-options"
+                  : "trade-item-options"
             }
             value={itemName}
             onChange={(e) => setItemName(e.target.value)}
@@ -245,21 +307,25 @@ export function TradeForm() {
           </datalist>
         </label>
 
-        <label>
-          個数
-          <input
-            type="number"
-            min="0.01"
-            step="any"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value)}
-            required
-          />
-        </label>
+        {kind !== "money" && (
+          <label>
+            個数
+            <input
+              type="number"
+              min="0.01"
+              step="any"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              required
+            />
+          </label>
+        )}
 
         {kind !== "obtain" && kind !== "consume" && (
           <label>
-            単価（1個あたり、例: 10k, 1.5M）
+            {kind === "money"
+              ? "金額（例: 10k, 1.5M）"
+              : "単価（1個あたり、例: 10k, 1.5M）"}
             <input
               placeholder="例: 10k"
               value={unitPriceInput}
@@ -317,7 +383,7 @@ export function TradeForm() {
           </label>
         )}
 
-        {kind === "sell" && (
+        {(kind === "sell" || (kind === "money" && moneyType === "income")) && (
           <label className="checkbox-label">
             <input
               type="checkbox"
@@ -327,13 +393,15 @@ export function TradeForm() {
             一時的な収入（イベント等）
           </label>
         )}
-        {kind === "sell" && isEventIncome && (
-          <p className="hint">
-            欲しいものリストの週平均収入の見積りから、この売却は除外されます。
-          </p>
-        )}
+        {(kind === "sell" || (kind === "money" && moneyType === "income")) &&
+          isEventIncome && (
+            <p className="hint">
+              欲しいものリストの週平均収入の見積りから、この
+              {kind === "sell" ? "売却" : "入金"}は除外されます。
+            </p>
+          )}
 
-        {(kind === "sell" || kind === "buy") && (
+        {(kind === "sell" || kind === "buy" || kind === "money") && (
           <label>
             タグ（任意、スペース・カンマ区切りで複数可）
             <input
