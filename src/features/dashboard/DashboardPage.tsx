@@ -33,6 +33,7 @@ import {
   getAllTimeHighAsset,
   getWeeklyTopSale,
   getMonthlyNetSummary,
+  pctChangeOf,
   type AssetGranularity,
   type TrendGranularity,
 } from "../../lib/financeCalc";
@@ -271,10 +272,10 @@ export function DashboardPage({ onRecordCharacter }: Props) {
       : 0;
   const weekOverWeekDelta =
     weeklyNet.currentWeekNet - weeklyNet.previousWeekNet;
-  const weekOverWeekPct =
-    weeklyNet.previousWeekNet !== 0
-      ? (weekOverWeekDelta / Math.abs(weeklyNet.previousWeekNet)) * 100
-      : null;
+  const weekOverWeekPct = pctChangeOf(
+    weeklyNet.currentWeekNet,
+    weeklyNet.previousWeekNet,
+  );
 
   const availableTaskGroups = getAvailableMdTasksGrouped(
     dungeons.filter((d) => !d.archived),
@@ -310,12 +311,10 @@ export function DashboardPage({ onRecordCharacter }: Props) {
   const allTimeHigh = getAllTimeHighAsset(trendTransactions, totalAssets);
   const weeklyTopSale = getWeeklyTopSale(trendTransactions);
   const monthlyNetSummary = getMonthlyNetSummary(trendTransactions);
-  const monthOverMonthPct =
-    monthlyNetSummary.lastMonthNet !== 0
-      ? ((monthlyNetSummary.thisMonthNet - monthlyNetSummary.lastMonthNet) /
-          Math.abs(monthlyNetSummary.lastMonthNet)) *
-        100
-      : null;
+  const monthOverMonthPct = pctChangeOf(
+    monthlyNetSummary.thisMonthNet,
+    monthlyNetSummary.lastMonthNet,
+  );
 
   const ASSET_MILESTONES = [
     10_000_000, 100_000_000, 1_000_000_000, 10_000_000_000,
@@ -454,7 +453,10 @@ export function DashboardPage({ onRecordCharacter }: Props) {
           )}
           <p>
             先週比:{" "}
-            {weekOverWeekPct !== null ? (
+            {weeklyNet.currentWeekNet === 0 &&
+            weeklyNet.previousWeekNet === 0 ? (
+              <span className="hint">先週のデータがありません</span>
+            ) : (
               <strong
                 className={
                   weekOverWeekDelta >= 0 ? "wow-positive" : "wow-negative"
@@ -462,12 +464,15 @@ export function DashboardPage({ onRecordCharacter }: Props) {
                 title={`${weekOverWeekDelta.toLocaleString()} z`}
               >
                 {weekOverWeekDelta >= 0 ? "▲" : "▼"}
-                {Math.abs(weekOverWeekPct).toFixed(0)}%（
+                {/* previousWeekNet <= 0 (no data, or last week was a net
+                loss) makes a %-change meaningless — see pctChangeOf — so
+                just show the zeny delta without a percentage in that case. */}
+                {weekOverWeekPct !== null &&
+                  `${Math.abs(weekOverWeekPct).toFixed(0)}%（`}
                 {weekOverWeekDelta >= 0 ? "+" : ""}
-                {formatZ(weekOverWeekDelta)}）
+                {formatZ(weekOverWeekDelta)}
+                {weekOverWeekPct !== null && "）"}
               </strong>
-            ) : (
-              <span className="hint">先週のデータがありません</span>
             )}
           </p>
           {weeklyNet.isNewBest && (

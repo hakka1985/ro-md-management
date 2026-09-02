@@ -179,7 +179,8 @@ function trendPeriodBounds(
   return { thisStart: thisStart.getTime(), lastStart: lastStart.getTime() };
 }
 
-function pctChangeOf(current: number, previous: number): number | null {
+/** null when `previous` isn't positive — a %-change against a zero/negative base (e.g. a net-loss week) has no meaningful direction, and computing one anyway produces wildly misleading figures (e.g. a small recovery from a big loss reading as "+100s%"). */
+export function pctChangeOf(current: number, previous: number): number | null {
   return previous > 0 ? ((current - previous) / previous) * 100 : null;
 }
 
