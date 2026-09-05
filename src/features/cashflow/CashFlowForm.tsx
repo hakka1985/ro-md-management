@@ -1,12 +1,13 @@
 import { useState, type FormEvent } from "react";
 import { useCashFlowPlan } from "./useCashFlowPlan";
-import { useItemPrices } from "../finance/useFinance";
+import { useItemPrices, useInventory } from "../finance/useFinance";
 import { parseZeny } from "../../lib/zeny";
 import type { CashFlowPlanKind } from "../../db/types";
 
 export function CashFlowForm() {
   const { addEntry } = useCashFlowPlan();
   const { itemPrices } = useItemPrices();
+  const { inventory } = useInventory();
   const [kind, setKind] = useState<CashFlowPlanKind>("sell");
   const [itemName, setItemName] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -14,7 +15,15 @@ export function CashFlowForm() {
   const [memo, setMemo] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const activeItems = itemPrices?.filter((p) => !p.archived) ?? [];
+  // "売る予定" can only realistically be filled from stock you actually
+  // hold — sourcing it from the item-price master (like "買う予定" does)
+  // kept surfacing items with zero inventory as candidates.
+  const sellCandidates = (inventory ?? []).filter((i) => i.quantity > 0);
+  const buyCandidates = itemPrices?.filter((p) => !p.archived) ?? [];
+  const nameCandidates =
+    kind === "sell"
+      ? sellCandidates.map((i) => i.itemName)
+      : buyCandidates.map((p) => p.itemName);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -70,8 +79,8 @@ export function CashFlowForm() {
           required
         />
         <datalist id="cash-flow-item-options">
-          {activeItems.map((p) => (
-            <option key={p.id} value={p.itemName} />
+          {nameCandidates.map((name) => (
+            <option key={name} value={name} />
           ))}
         </datalist>
       </label>
