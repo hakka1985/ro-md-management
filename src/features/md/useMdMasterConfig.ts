@@ -52,7 +52,14 @@ export function useMdMasterConfig(dungeons: MdDungeon[]) {
         if (name in d.items) {
           const next = { ...d.items };
           delete next[name];
-          await db.mdDungeons.update(d.id, { items: next });
+          const noSplitItems = d.noSplitItems?.filter((n) => n !== name);
+          await db.mdDungeons.update(d.id, {
+            items: next,
+            noSplitItems:
+              noSplitItems && noSplitItems.length > 0
+                ? noSplitItems
+                : undefined,
+          });
         }
       }
     });

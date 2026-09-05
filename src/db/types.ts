@@ -58,6 +58,8 @@ export interface MdDungeon {
   defaultScore?: number;
   /** Pre-filled 踏破部屋数 value when starting a new run record for this dungeon — same purpose as defaultScore. */
   defaultRooms?: number;
+  /** Item names (subset of the keys of `items`) that are picked up individually rather than pooled and split across the party — e.g. a personal quest item everyone loots for themselves. When recording a PT run, quantities entered for these items go straight to the recorder's own inventory instead of through partyShare/PT在庫一覧. */
+  noSplitItems?: string[];
 }
 
 export interface MdRun {

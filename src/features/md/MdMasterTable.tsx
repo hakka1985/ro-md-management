@@ -434,6 +434,7 @@ interface ItemCellProps {
   itemName: string;
   onToggle: () => void;
   onQtyChange: (qty: number) => void;
+  onNoSplitToggle: () => void;
 }
 
 function MdItemCell({
@@ -441,9 +442,11 @@ function MdItemCell({
   itemName,
   onToggle,
   onQtyChange,
+  onNoSplitToggle,
 }: ItemCellProps) {
   const isSet = itemName in dungeon.items;
   const qty = dungeon.items[itemName] ?? 0;
+  const noSplit = (dungeon.noSplitItems ?? []).includes(itemName);
   return (
     <td>
       <div
@@ -465,15 +468,29 @@ function MdItemCell({
           {isSet ? "★" : "☆"}
         </span>
         {isSet && (
-          <input
-            type="number"
-            min="0"
-            step="1"
-            value={qty}
-            onFocus={(e) => e.currentTarget.select()}
-            onChange={(e) => onQtyChange(Number(e.target.value))}
-            style={{ width: "3.5rem" }}
-          />
+          <>
+            <input
+              type="number"
+              min="0"
+              step="1"
+              value={qty}
+              onFocus={(e) => e.currentTarget.select()}
+              onChange={(e) => onQtyChange(Number(e.target.value))}
+              style={{ width: "3.5rem" }}
+            />
+            <label
+              className="checkbox-label"
+              style={{ fontSize: "0.7rem", whiteSpace: "nowrap" }}
+              title="PTで周回してもこのアイテムは分配せず、記録時に入力した数がそのまま自分の在庫に直接加算されます（個別に持ち帰るアイテム向け）"
+            >
+              <input
+                type="checkbox"
+                checked={noSplit}
+                onChange={onNoSplitToggle}
+              />
+              個別
+            </label>
+          </>
         )}
       </div>
     </td>
@@ -565,14 +582,33 @@ export function MdMasterTable() {
 
   function toggleItem(dungeon: MdDungeon, item: string) {
     const next = { ...dungeon.items };
-    if (item in next) delete next[item];
-    else next[item] = 0;
-    updateDungeon(dungeon.id, { items: next });
+    if (item in next) {
+      delete next[item];
+      const noSplitItems = dungeon.noSplitItems?.filter((n) => n !== item);
+      updateDungeon(dungeon.id, {
+        items: next,
+        noSplitItems:
+          noSplitItems && noSplitItems.length > 0 ? noSplitItems : undefined,
+      });
+    } else {
+      next[item] = 0;
+      updateDungeon(dungeon.id, { items: next });
+    }
   }
 
   function setItemQty(dungeon: MdDungeon, item: string, qty: number) {
     if (Number.isNaN(qty) || qty < 0) return;
     updateDungeon(dungeon.id, { items: { ...dungeon.items, [item]: qty } });
+  }
+
+  function toggleNoSplit(dungeon: MdDungeon, item: string) {
+    const current = dungeon.noSplitItems ?? [];
+    const next = current.includes(item)
+      ? current.filter((n) => n !== item)
+      : [...current, item];
+    updateDungeon(dungeon.id, {
+      noSplitItems: next.length > 0 ? next : undefined,
+    });
   }
 
   function confirmRemoveItem(item: string) {
@@ -687,6 +723,7 @@ export function MdMasterTable() {
                             itemName={item}
                             onToggle={() => toggleItem(d, item)}
                             onQtyChange={(q) => setItemQty(d, item, q)}
+                            onNoSplitToggle={() => toggleNoSplit(d, item)}
                           />
                         ))}
                         <td>
@@ -768,6 +805,7 @@ export function MdMasterTable() {
                             itemName={item}
                             onToggle={() => toggleItem(d, item)}
                             onQtyChange={(q) => setItemQty(d, item, q)}
+                            onNoSplitToggle={() => toggleNoSplit(d, item)}
                           />
                         ))}
                       </tr>

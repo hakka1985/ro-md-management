@@ -68,6 +68,7 @@ export function MdDropPanel({
   const [submitting, setSubmitting] = useState(false);
 
   const party = Math.max(1, Number(partySize) || 1);
+  const noSplitItems = new Set(dungeon.noSplitItems ?? []);
 
   function handleModeChange(name: string) {
     setModeName(name);
@@ -88,7 +89,10 @@ export function MdDropPanel({
     for (const name of itemNames) {
       const totalQty = Number(quantities[name] ?? "0");
       if (Number.isNaN(totalQty) || totalQty <= 0) continue;
-      const myShare = partyShare(totalQty, party);
+      // 個別取得アイテムはPT分配せず、入力値をそのまま自分の取得数として扱う。
+      const myShare = noSplitItems.has(name)
+        ? totalQty
+        : partyShare(totalQty, party);
       if (myShare > 0) {
         items[name] = myShare;
         totalQuantities[name] = totalQty;
@@ -153,8 +157,9 @@ export function MdDropPanel({
         }
         // PT分配の場合は addStock で直接足すのではなく、"PT在庫一覧" が集計
         // する側の履歴として記録する（誰と何個ずつ分けたかをあとから振り返れる
-        // ように）。ソロ（PT人数1）は今まで通り在庫に直接加算するだけ。
-        if (party > 1) {
+        // ように）。ソロ（PT人数1）と個別取得アイテムは今まで通り在庫に直接
+        // 加算するだけ（誰かと分け合うものではないため）。
+        if (party > 1 && !noSplitItems.has(name)) {
           await addPartyObtain({
             itemName: name,
             totalQuantity: totalQuantities[name],
@@ -279,7 +284,13 @@ export function MdDropPanel({
         {itemNames.length > 0 && (
           <>
             <h3>獲得アイテム（パーティ全体の取得数）</h3>
+            {party > 1 && noSplitItems.size > 0 && (
+              <p className="hint">
+                「個別」設定のアイテムは分配せず、入力した数がそのまま自分の取得数になります。
+              </p>
+            )}
             {itemNames.map((name) => {
+              const isNoSplit = noSplitItems.has(name);
               const totalQty = Number(quantities[name] ?? "0");
               const myShare = Number.isNaN(totalQty)
                 ? 0
@@ -287,6 +298,9 @@ export function MdDropPanel({
               return (
                 <label key={name}>
                   {name}
+                  {party > 1 && isNoSplit && (
+                    <span className="hint">（個別取得・分配なし）</span>
+                  )}
                   <input
                     type="number"
                     min="0"
@@ -297,7 +311,7 @@ export function MdDropPanel({
                     }
                     onFocus={(e) => e.currentTarget.select()}
                   />
-                  {party > 1 && (
+                  {party > 1 && !isNoSplit && (
                     <span className="hint">→ 自分の取り分: {myShare}</span>
                   )}
                 </label>
